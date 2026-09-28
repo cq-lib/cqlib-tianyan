@@ -118,11 +118,11 @@ fn main() -> Result<(), cqlib_tianyan::TianyanError> {
         println!("  Task ID : {}", r.task_id());
 
         let mut outcomes: Vec<_> = r.counts().keys().collect();
-        outcomes.sort_by_key(|o| usize::from_str_radix(&o.to_string(n_qubits), 2).unwrap_or(0));
+        outcomes.sort_by_key(|o| usize::from_str_radix(&o.to_bitstring(n_qubits), 2).unwrap_or(0));
 
         println!("  {:>4}  {:>10}  {:>10}", "Basis", "Count", "Prob");
         for o in &outcomes {
-            let basis = o.to_string(n_qubits);
+            let basis = o.to_bitstring(n_qubits);
             let cc = r.counts().get(*o).copied().unwrap_or(0);
             let cp = r
                 .probabilities()

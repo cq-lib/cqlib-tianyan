@@ -14,7 +14,8 @@ PyPI or crates.io.
 | `tools/ci.py` | Version checks, C SDK packaging/tests, installed-wheel tests, source packages |
 | `tools/c-sdk/` | CMake test configuration and README distributed with each C SDK |
 
-Rust 1.97.1 is pinned only in CI. The crate MSRV remains `1.85`. Ruff `0.15.9`
+Rust 1.97.1 is pinned only in CI. The crate MSRV is `1.89`, matching the
+registry dependency `cqlib-core 0.1.0-beta.1`. Ruff `0.15.9`
 and clang-format `22.1.2` match this repository's pre-commit configuration.
 
 ## Trigger Behavior
@@ -66,29 +67,25 @@ platform also produces one C SDK archive (ZIP on Windows, tar.gz elsewhere)
 containing `cqlib_tianyan.h`, static and shared libraries, README, LICENSE.txt,
 and `tests/test_api.c`.
 
-The source job generates the Python sdist only. `cqlib-tianyan` depends on
-`cqlib-core` via git and does not declare a crates.io version, so
-`cargo package` exits before producing a `.crate`. Do not add a placeholder
-registry version: Cargo would rewrite the git source to crates.io and fail
-verification. Publish the Rust crate only after `cqlib-core` is on crates.io
-and the dependency is switched to a registry version.
+The source job generates the Python sdist and the Rust `.crate` package.
+`cqlib-tianyan` depends on `cqlib-core 0.1.0-beta.1` from crates.io.
+`cargo package --locked -p cqlib-tianyan` verifies that the packaged Rust crate
+builds against registry dependencies before the artifact is uploaded.
 
 The Python package does not hard-depend on PyPI `cqlib>=0.1.0` (that range
 installs classic `cqlib 1.3.11`, which lacks `cqlib.device` and
-`cqlib.circuit`). Install the companion extra `cqlib-tianyan[cqlib]` when the
-Rust-backed `cqlib>=1.4.0b1` is published. `device_config()` and result
+`cqlib.circuit`). Install the companion extra `cqlib-tianyan[cqlib]` to use the
+Rust-backed `cqlib>=2.0.0b1`. `device_config()` and result
 conversion call those modules at runtime.
 
 ## Downloading and Publishing
 
 Wait for the entire tag workflow to succeed. Download the five
 `release-<tag>-<platform>` artifacts and `release-<tag>-sources`. Together they
-contain 11 files: 5 wheels, 1 sdist, and 5 C SDK archives. There is no
-`.crate` until `cqlib-core` is a registry dependency.
+contain 12 files: 5 wheels, 1 sdist, 1 `.crate`, and 5 C SDK archives.
 
 - PyPI: manually review and upload the 5 wheels and sdist with Twine.
-- crates.io: only after the `cqlib-core` git dependency is replaced by a
-  registry version. Publish `cqlib-tianyan` only. `binding-python` and
+- crates.io: publish `cqlib-tianyan` only. `binding-python` and
   `binding-c` are not published.
 - GitHub Releases: maintainers create a Release at the same tag and attach the
   C SDK archives.

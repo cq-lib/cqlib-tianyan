@@ -429,8 +429,9 @@ dependencies = [
 
 [[package]]
 name = "cqlib-core"
-version = "0.1.0"
-source = "git+https://github.com/cq-lib/cqlib.git?branch=develop#acbf3039e61298e033d565acb89a4029a11be7e9"
+version = "0.1.0-beta.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85d3a95694d07ffd35168084d8c232cfedd0f807673f4610e7fddae6a36d3793"
 dependencies = [
  "approx",
  "bitvec",

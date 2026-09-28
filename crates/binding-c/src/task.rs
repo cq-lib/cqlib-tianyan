@@ -321,7 +321,7 @@ pub extern "C" fn tianyan_result_counts_json(
     let counts_map: HashMap<String, usize> = result
         .counts()
         .iter()
-        .map(|(outcome, &count): (&Outcome, &usize)| (outcome.to_string(num_qubits), count))
+        .map(|(outcome, &count): (&Outcome, &usize)| (outcome.to_bitstring(num_qubits), count))
         .collect();
     match serde_json::to_string(&counts_map) {
         Ok(json) => str_to_cstring(&json),

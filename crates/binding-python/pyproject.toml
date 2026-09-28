@@ -30,7 +30,7 @@ classifiers = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
-cqlib = ["cqlib>=1.4.0b1"]
+cqlib = ["cqlib>=2.0.0b1"]
 
 [project.urls]
 Homepage = "https://qc.zdxlz.com/cqlib"

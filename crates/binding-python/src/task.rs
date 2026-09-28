@@ -70,7 +70,7 @@ pub(crate) fn er_to_py(py: Python<'_>, er: &ExecutionResult) -> PyResult<Py<PyAn
     let counts: HashMap<String, usize> = er
         .counts()
         .iter()
-        .map(|(outcome, &count)| (outcome.to_string(er.num_qubits()), count))
+        .map(|(outcome, &count)| (outcome.to_bitstring(er.num_qubits()), count))
         .collect();
     py_er.call_method1("finish", (counts,))?;
     py_er.call_method0("calc_probabilities")?;
