@@ -301,19 +301,16 @@ def release(platform):
 
 def sources():
     DIST.mkdir(parents=True, exist_ok=True)
-    print(
-        "Skipping cargo package: cqlib-core is a git dependency without a "
-        "crates.io version, so cargo package cannot rewrite it. Produce the "
-        "Python sdist only until cqlib-core is published to the registry.",
-        flush=True,
-    )
+    python, rust = versions()
+    run("cargo", "package", "--locked", "-p", "cqlib-tianyan")
+    target = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target")).resolve()
+    shutil.copy2(target / "package" / f"cqlib-tianyan-{rust}.crate", DIST)
     # maturin sdist does not support --locked.
     lock = (ROOT / "Cargo.lock").read_bytes()
     run(sys.executable, "-m", "maturin", "sdist", "--out", DIST, cwd=BINDING)
     require(
         (ROOT / "Cargo.lock").read_bytes() == lock, "sdist changed checkout Cargo.lock"
     )
-    python = versions()[0]
     sdist = DIST / f"cqlib_tianyan-{python}.tar.gz"
     if not sdist.exists():
         sdist = DIST / f"cqlib-tianyan-{python}.tar.gz"
