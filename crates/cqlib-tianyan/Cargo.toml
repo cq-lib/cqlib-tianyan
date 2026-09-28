@@ -22,3 +22,7 @@ time.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
+
+[lints.clippy]
+# Keep the existing nested conditionals when raising the MSRV for cqlib-core.
+collapsible_if = "allow"
