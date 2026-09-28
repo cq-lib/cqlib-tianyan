@@ -62,7 +62,10 @@ pub mod task;
 
 // Re-export the most commonly used public types at the crate root.
 pub use config::TianyanConfig;
-pub use device::{CircuitInput, DeviceStatus, DeviceToll, TianyanBackend};
+pub use device::{CircuitInput, DeviceStatus, DeviceToll, DeviceType, TianyanBackend};
 pub use error::TianyanError;
 pub use platform::TianyanPlatform;
 pub use task::{CalibrationMode, TaskHandle};
+
+#[cfg(test)]
+mod capability_test;

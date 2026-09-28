@@ -1,4 +1,5 @@
 fail_fast: false
+default_stages: [pre-commit]
 repos:
   # 1. 基础文件检查 (通用)
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -18,23 +19,30 @@ repos:
       - id: fmt
         name: Rust Fmt
         description: Format Rust code
+        args: ["--all"]
+        pass_filenames: false
       - id: cargo-check
         name: Cargo Check
         description: Check for compilation errors
+        types: [file]
+        files: '(\.rs$|(^|/)Cargo\.(toml|lock)$)'
+        args: ["--workspace", "--all-targets", "--locked"]
       - id: clippy
         name: Cargo Clippy
         description: Lint Rust code
-        args: ["--", "-D", "warnings"] # 将警告视为错误
+        types: [file]
+        files: '(\.rs$|(^|/)Cargo\.(toml|lock)$)'
+        args: ["--workspace", "--all-targets", "--locked", "--", "-D", "warnings"] # 将警告视为错误
 
   # 3. Python 检查 (Binding-Python)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.9
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [ --fix ]
       - id: ruff-format
 
-  # 4. C++ 格式化 (Binding-Cpp)
+  # 4. C 格式化 (Binding-C)
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v22.1.2
     hooks:
@@ -44,9 +52,10 @@ repos:
 
   # 5. 拼写检查 (防止 API 拼写错误)
   - repo: https://github.com/crate-ci/typos
-    rev: v1
+    rev: v1.47.2
     hooks:
       - id: typos
+        args: [--force-exclude]
         # 排除不需要检查的文件
         exclude: |
             (?x)^(

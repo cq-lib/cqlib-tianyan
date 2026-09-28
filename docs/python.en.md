@@ -102,8 +102,23 @@ platform = TianyanPlatform.from_credentials(
 backends = platform.list_backends()
 
 for b in backends:
-    print(f"{b.name:30} status={b.status}")
+    print(f"{b.name:30} type={b.device_type} status={b.status}")
 ```
+
+`backend.device_type` returns the backend's `DeviceType`.
+Read its `.value` string or compare it directly, for example `backend.device_type == "simulator"`.
+
+| Device type | `.value` | Devices |
+|---|---|---|
+| Simulator | `simulator` | `tianyan_sw`, `tianyan_s`, `tianyan_tn`, `tianyan_tnn`, `tianyan_sa`, `tianyan_swn` |
+| Photonic | `photonic` | `tianyan-p2000` |
+| Superconducting | `superconducting` | `tianyan176`, `tianyan176-2`, `tianyan24`, `tianyan504`, `tianyan-287`, `tianyan-294` |
+
+Only `Superconducting` devices support configuration downloads and readout calibration; qubit-count queries that depend on configuration have the same restriction.
+
+Only `Superconducting` and `Simulator` devices can submit tasks; `Photonic` and `IonTrap` submissions fail locally.
+
+`Auto` skips configuration download and calibration for non-superconducting devices and returns raw counts. Explicitly selecting `Enabled` on a non-superconducting device fails before submission. `Disabled` always returns raw counts. `is_available` reports running status only; it does not guarantee submission support.
 
 ### 3.2 Select a specific backend
 
@@ -114,7 +129,7 @@ print(f"Selected: {backend.name} ({backend.status})")
 
 ### 3.3 Inspect the device topology
 
-The device calibration configuration includes the qubit/coupler topology and measured hardware properties:
+Configuration access is available only for superconducting devices. The device calibration configuration includes the qubit/coupler topology and measured hardware properties:
 
 ```python
 device = backend.device_config()
@@ -167,10 +182,13 @@ task = platform.submit(
 
 Poll until all circuits complete (or timeout):
 
+Both `wait()` and `wait_raw()` accept `timeout` and `poll_interval` in seconds,
+defaulting to `120.0` and `5.0`. Call `task.wait()` or `task.wait_raw()` to use these defaults.
+
 ```python
 results = task.wait(
-    timeout_secs=120,  # maximum wait (seconds)
-    poll_interval_secs=5  # poll interval (seconds)
+    timeout=120,  # maximum wait (seconds)
+    poll_interval=5  # poll interval (seconds)
 )
 
 for r in results:
@@ -180,10 +198,10 @@ for r in results:
         print(f"Probs : {r.probabilities}")
 ```
 
-**Default behaviour**: `wait()` applies readout error calibration automatically when calibration data is available (see §6). To always get raw counts:
+**Default behaviour**: `wait()` applies readout error calibration automatically on superconducting devices when calibration data is available and at most 14 qubits are measured (see §6). To always get raw counts:
 
 ```python
-raw_results = task.wait_raw(timeout_secs=120, poll_interval_secs=5)
+raw_results = task.wait_raw(timeout=120, poll_interval=5)
 ```
 
 ### 5.2 Non-blocking status check
@@ -246,7 +264,8 @@ The implementation:
 
 ### 6.4 Auto-calibration (recommended)
 
-`wait()` uses the `CalibrationMode.Auto` strategy (default) and automatically downloads and applies calibration when **both** conditions are met:
+`wait()` uses the `CalibrationMode.Auto` strategy (default). It downloads configuration only for superconducting devices and applies calibration when **both** conditions are met:
+
 1. Calibration data is available on the backend.
 2. The circuit measures **≤ 14 qubits**.
 
@@ -255,14 +274,14 @@ The implementation:
 
 ```python
 # Default CalibrationMode.Auto — auto-calibrates for ≤ 14 measured qubits
-results = task.wait(timeout_secs=120, poll_interval_secs=5)
+results = task.wait(timeout=120, poll_interval=5)
 ```
 
 ### 6.5 Comparing calibrated vs. raw
 
 ```python
-cal_results = task.wait(timeout_secs=120, poll_interval_secs=5)
-raw_results = task.wait_raw(timeout_secs=120, poll_interval_secs=5)
+cal_results = task.wait(timeout=120, poll_interval=5)
+raw_results = task.wait_raw(timeout=120, poll_interval=5)
 
 for cr, rr in zip(cal_results, raw_results):
     print(f"Calibrated: {cr.probabilities}")
@@ -293,26 +312,33 @@ Results are returned in the same order as the submitted circuits.
 
 | Variant | Behaviour |
 |---------|-----------|
-| `"auto"` *(default)* | Apply calibration when data is available **and** the circuit measures ≤ 14 qubits; silently fall back to raw counts otherwise |
-| `"enabled"` | Always calibrate regardless of qubit count; return error if no calibration data (caller is responsible for sufficient RAM) |
+| `"auto"` *(default)* | On superconducting devices, apply calibration when data is available **and** the circuit measures ≤ 14 qubits; silently fall back to raw counts otherwise |
+| `"enabled"` | Require a superconducting device and calibration data, regardless of qubit count; reject other types before submission (caller is responsible for sufficient RAM) |
 | `"disabled"` | Always return raw counts; no mitigation applied |
 
 > **The 14-qubit threshold for `auto`**: confusion matrix memory is O(4ⁿ); for n > 14 this exceeds 2 GiB, so `auto` falls back automatically to prevent OOM.
 
 Set at submission time — accepts either a plain string or a `CalibrationMode` object:
 
+`run(circuits, shots, *, calibration_mode="auto")` takes the calibration policy
+as a keyword-only argument. `platform.submit()` accepts the same option. Each
+call below submits a new task. The legacy `run_raw()` and `run_with_mode()`
+methods remain deprecated aliases and emit `DeprecationWarning`.
+
 ```python
 from cqlib_tianyan import CalibrationMode
 
+circuits = ["H Q1\nM Q1"]
+
 # Require calibration — fail if data is missing
-task = backend.run_with_mode(circuits, 1000, mode="enabled")
+task = backend.run(circuits, 1000, calibration_mode="enabled")
 
 # Skip calibration
-task = backend.run_raw(circuits, 1000)
+task = backend.run(circuits, 1000, calibration_mode="disabled")
 
 # Pass a CalibrationMode object (equivalent to the string)
 mode = CalibrationMode("disabled")
-task = backend.run_with_mode(circuits, 1000, mode=mode)  # object accepted directly
+task = backend.run(circuits, 1000, calibration_mode=mode)  # object accepted directly
 
 # CalibrationMode supports equality comparison with strings
 assert mode == "disabled"                    # True
@@ -395,7 +421,7 @@ circuit = "H Q1\nH Q8\nCZ Q1 Q8\nH Q8\nM Q1\nM Q8"
 task = backend.run([circuit], 1000)
 
 # 5. Wait and print calibrated results (default CalibrationMode.Auto)
-results = task.wait(timeout_secs=120, poll_interval_secs=5)
+results = task.wait(timeout=120, poll_interval=5)
 for r in results:
     print(f"Task ID: {r.task_id}")
     print(f"Counts: {r.counts}")

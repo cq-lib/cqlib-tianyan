@@ -26,7 +26,7 @@
 use crate::calibration;
 use crate::client::TianyanClient;
 use crate::config::{QUERY_RESULT_PATH, SUBMIT_PATH};
-use crate::device::CircuitInput;
+use crate::device::{CircuitInput, DeviceType};
 use crate::device_config::{self, ReadoutCalibrationData};
 use crate::error::TianyanError;
 use cqlib_core::circuit::Qubit;
@@ -67,20 +67,35 @@ pub const AUTO_CALIBRATION_MAX_QUBITS: usize = 14;
 ///
 /// | Variant | Behaviour |
 /// |---------|-----------|
-/// | `Auto` | Apply mitigation when calibration data is available **and** the circuit measures ≤ [`AUTO_CALIBRATION_MAX_QUBITS`] (14) qubits; silently fall back to raw counts for larger circuits or missing data. (**default**) |
-/// | `Enabled` | Always apply mitigation regardless of circuit size; return an error if calibration data is unavailable. *Caller is responsible for ensuring sufficient memory.* |
+/// | `Auto` | On superconducting devices, apply mitigation when calibration data is available **and** the circuit measures ≤ [`AUTO_CALIBRATION_MAX_QUBITS`] (14) qubits; otherwise return raw counts. Other device types skip configuration download. (**default**) |
+/// | `Enabled` | Require a superconducting device and calibration data, regardless of circuit size. Reject other device types before submission. *Caller is responsible for ensuring sufficient memory.* |
 /// | `Disabled` | Never apply mitigation; always return raw measurement counts. |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CalibrationMode {
-    /// Apply readout calibration when available and circuit measures ≤ 14 qubits;
-    /// fall back to raw counts for larger circuits or if calibration is absent (default).
+    /// Apply readout calibration on superconducting devices when available and
+    /// circuit measures ≤ 14 qubits; otherwise return raw counts (default).
     #[default]
     Auto,
     /// Always apply readout calibration regardless of qubit count;
-    /// return an error if calibration data is unavailable.
+    /// return an error for non-superconducting devices or unavailable calibration data.
     Enabled,
     /// Never apply readout calibration; always return raw counts.
     Disabled,
+}
+
+impl CalibrationMode {
+    fn should_calibrate(self, device_name: &str) -> Result<bool, TianyanError> {
+        let device_type = DeviceType::from_code(device_name)
+            .ok_or_else(|| TianyanError::DeviceNotFound(device_name.to_string()))?;
+        match self {
+            Self::Disabled => Ok(false),
+            Self::Auto => Ok(device_type == DeviceType::Superconducting),
+            Self::Enabled if device_type == DeviceType::Superconducting => Ok(true),
+            Self::Enabled => Err(TianyanError::InvalidInput(format!(
+                "readout calibration is only supported for superconducting devices: {device_name}"
+            ))),
+        }
+    }
 }
 
 /// Request body for the batch circuit submission endpoint.
@@ -254,7 +269,7 @@ pub struct TaskHandle {
     /// Controls whether [`wait`](Self::wait) applies readout error mitigation.
     ///
     /// Defaults to [`CalibrationMode::Auto`] — calibration is applied when
-    /// calibration data is available, raw counts returned otherwise.
+    /// the device is superconducting and calibration data is available, raw counts otherwise.
     pub calibration_mode: CalibrationMode,
     pub(crate) client: Arc<TianyanClient>,
 }
@@ -280,6 +295,7 @@ impl TaskHandle {
         circuits: Vec<CircuitInput>,
         shots: usize,
         device_name: &str,
+        calibration_mode: CalibrationMode,
     ) -> Result<Self, TianyanError> {
         if circuits.is_empty() {
             return Err(TianyanError::InvalidInput(
@@ -290,6 +306,17 @@ impl TaskHandle {
             return Err(TianyanError::InvalidInput(
                 "shots must be greater than zero".to_string(),
             ));
+        }
+
+        // Validate capabilities before converting circuits or submitting any batch.
+        calibration_mode.should_calibrate(device_name)?;
+        if !matches!(
+            DeviceType::from_code(device_name),
+            Some(DeviceType::Superconducting | DeviceType::Simulator)
+        ) {
+            return Err(TianyanError::InvalidInput(format!(
+                "task submission is only supported for superconducting devices and simulators: {device_name}"
+            )));
         }
 
         // Convert all circuit inputs to QCIS strings up-front.
@@ -331,7 +358,7 @@ impl TaskHandle {
             device_name: device_name.to_string(),
             shots,
             submitted_at,
-            calibration_mode: CalibrationMode::Auto,
+            calibration_mode,
             client,
         })
     }
@@ -353,9 +380,9 @@ impl TaskHandle {
     /// `timeout` elapses.
     ///
     /// Readout error mitigation is applied according to [`self.calibration_mode`](Self::calibration_mode):
-    /// - [`Auto`](CalibrationMode::Auto) *(default)* — calibrate if data is available **and** the
+    /// - [`Auto`](CalibrationMode::Auto) *(default)* — calibrate superconducting devices if data is available **and** the
     ///   circuit measures ≤ [`AUTO_CALIBRATION_MAX_QUBITS`] (14) qubits; else return raw.
-    /// - [`Enabled`](CalibrationMode::Enabled) — always calibrate; error if no calibration data exists.
+    /// - [`Enabled`](CalibrationMode::Enabled) — require a superconducting device and calibration data.
     /// - [`Disabled`](CalibrationMode::Disabled) — always return raw counts.
     ///
     /// # Arguments
@@ -409,10 +436,15 @@ impl TaskHandle {
     ///
     /// Only the fidelities for qubits that were actually measured in each circuit
     /// are used, avoiding the O(4^n_device) memory explosion.
+    /// Respects the device type and [`calibration_mode`](Self::calibration_mode),
+    /// even when calibration data is supplied explicitly.
     pub fn status_with_calibration(
         &self,
         cal: &ReadoutCalibrationData,
     ) -> Result<Vec<ExecutionResult>, TianyanError> {
+        if !self.calibration_mode.should_calibrate(&self.device_name)? {
+            return self.status();
+        }
         let cal_map = cal.to_cal_map();
         query_results_calibrated(
             &self.client,
@@ -423,13 +455,17 @@ impl TaskHandle {
         )
     }
 
-    /// Like [`wait`](Self::wait), but applies readout error mitigation.
+    /// Like [`wait`](Self::wait), using supplied calibration data. Respects the
+    /// device type and [`calibration_mode`](Self::calibration_mode).
     pub fn wait_with_calibration(
         &self,
         timeout: Duration,
         poll_interval: Duration,
         cal: &ReadoutCalibrationData,
     ) -> Result<Vec<ExecutionResult>, TianyanError> {
+        if !self.calibration_mode.should_calibrate(&self.device_name)? {
+            return self.wait_raw(timeout, poll_interval);
+        }
         let cal_map = cal.to_cal_map();
         let start = Instant::now();
         let expected = self.task_ids.len();
@@ -460,19 +496,18 @@ impl TaskHandle {
     /// calibration data from the backend and applies measurement error
     /// mitigation to the results.
     ///
-    /// Like [`wait`](Self::wait), but automatically downloads readout
-    /// calibration data from the backend and applies measurement error
-    /// mitigation to the results.
-    ///
-    /// When called from [`wait`](Self::wait) with `CalibrationMode::Auto`,
-    /// missing calibration data causes a graceful fallback to raw counts.
-    /// When called directly or with `CalibrationMode::Enabled`, missing data
-    /// returns a [`TianyanError::InvalidInput`] error.
+    /// Respects [`calibration_mode`](Self::calibration_mode): `Auto` skips download
+    /// for non-superconducting devices and falls back to raw counts for missing
+    /// calibration data. `Enabled` requires a superconducting device and calibration
+    /// data. `Disabled` returns raw counts without downloading configuration.
     pub fn wait_calibrated(
         &self,
         timeout: Duration,
         poll_interval: Duration,
     ) -> Result<Vec<ExecutionResult>, TianyanError> {
+        if !self.calibration_mode.should_calibrate(&self.device_name)? {
+            return self.wait_raw(timeout, poll_interval);
+        }
         let cal = device_config::download_device_config_full(&self.client, &self.device_name)?;
         match cal.1 {
             Some(ref data) => self.wait_with_calibration(timeout, poll_interval, data),
@@ -528,7 +563,7 @@ fn query_results(
 /// - [`CalibrationMode::Auto`] — skip calibration for circuits measuring more
 ///   than [`AUTO_CALIBRATION_MAX_QUBITS`] qubits (memory safety guard).
 /// - [`CalibrationMode::Enabled`] — always calibrate regardless of qubit count.
-/// - [`CalibrationMode::Disabled`] — `cal` should already be `None`; no-op.
+/// - [`CalibrationMode::Disabled`] — never apply calibration.
 fn query_results_calibrated(
     client: &TianyanClient,
     task_ids: &[String],
@@ -552,6 +587,7 @@ fn query_results_calibrated(
             // Auto mode: skip calibration if this circuit measures too many qubits.
             // Enabled mode: always calibrate (caller accepted the memory cost).
             let effective_cal = match calibration_mode {
+                CalibrationMode::Disabled => None,
                 CalibrationMode::Auto if qubits.len() > AUTO_CALIBRATION_MAX_QUBITS => None,
                 _ => cal,
             };

@@ -4,3 +4,6 @@ extend-ignore-re = ["-Iinclude"]
 [default.extend-words]
 cqlib = "cqlib"
 tianyan = "tianyan"
+
+[default.extend-identifiers]
+secur32 = "secur32"

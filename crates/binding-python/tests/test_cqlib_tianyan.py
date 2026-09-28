@@ -39,6 +39,7 @@ from cqlib_tianyan import (
     CalibrationMode,
     DeviceStatus,
     DeviceToll,
+    DeviceType,
     TaskHandle,
     TianyanBackend,
     TianyanConfig,
@@ -108,6 +109,8 @@ def available_backend(
         # Use specified device
         try:
             backend = platform.get_backend(device_name)
+            if backend.device_type.value not in ("superconducting", "simulator"):
+                pytest.skip(f"Device '{device_name}' does not support task submission")
             if not backend.is_available():
                 pytest.skip(
                     f"Specified device '{device_name}' is not available (status: {backend.status})"
@@ -122,7 +125,10 @@ def available_backend(
         pytest.skip("No backends available on the platform")
 
     for backend in backends:
-        if backend.is_available():
+        if backend.is_available() and backend.device_type.value in (
+            "superconducting",
+            "simulator",
+        ):
             return backend
 
     pytest.skip("No available backends found (all offline or under maintenance)")
@@ -224,6 +230,7 @@ class TestDeviceStatus:
                 "calibration",
                 "under_maintenance",
                 "offline",
+                "upgrading",
                 "unknown",
             ]
 
@@ -405,12 +412,26 @@ class TestTianyanBackend:
         assert isinstance(backend.name, str)
         assert len(backend.name) > 0
         assert isinstance(backend.display_name, str)
+        assert isinstance(backend.device_type, DeviceType)
+        assert backend.device_type.value in (
+            "superconducting",
+            "photonic",
+            "ion_trap",
+            "simulator",
+        )
+        assert backend.device_type == backend.device_type.value
+        assert str(backend.device_type) == backend.device_type.value
+        assert repr(backend.device_type) == f"DeviceType('{backend.device_type.value}')"
         assert isinstance(backend.status, DeviceStatus)
         assert isinstance(backend.toll, DeviceToll)
 
-        num_qubits = backend.num_qubits()
-        assert isinstance(num_qubits, int)
-        assert num_qubits > 0
+        if backend.device_type == "superconducting":
+            num_qubits = backend.num_qubits()
+            assert isinstance(num_qubits, int)
+            assert num_qubits > 0
+        else:
+            with pytest.raises(Exception, match="only supported for superconducting"):
+                backend.num_qubits()
 
     def test_is_available(self, available_backend: TianyanBackend) -> None:
         """Available backend reports is_available=True."""
@@ -428,6 +449,11 @@ class TestTianyanBackend:
 
     def test_device_config(self, available_backend: TianyanBackend) -> None:
         """Device configuration can be retrieved."""
+        if available_backend.device_type != "superconducting":
+            with pytest.raises(Exception, match="only supported for superconducting"):
+                available_backend.device_config()
+            return
+
         from cqlib.device import Device
 
         device = available_backend.device_config()
@@ -538,7 +564,7 @@ class TestResultRetrieval:
         task = available_backend.run([simple_circuit], shots=100)
 
         # Wait with reasonable timeout
-        results = task.wait(timeout_secs=300.0, poll_interval_secs=5.0)
+        results = task.wait(timeout=300.0, poll_interval=5.0)
 
         assert isinstance(results, list)
         assert len(results) == 1
@@ -568,7 +594,7 @@ class TestResultRetrieval:
         """Raw results can be retrieved."""
         task = available_backend.run_raw([simple_circuit], shots=100)
 
-        results = task.wait_raw(timeout_secs=300.0, poll_interval_secs=5.0)
+        results = task.wait_raw(timeout=300.0, poll_interval=5.0)
 
         assert isinstance(results, list)
         assert len(results) == 1
@@ -583,7 +609,7 @@ class TestResultRetrieval:
         # Very short timeout should fail
         # Note: In abi3 mode, TianyanError cannot be caught by type
         with pytest.raises(Exception):
-            task.wait(timeout_secs=0.001, poll_interval_secs=0.001)
+            task.wait(timeout=0.001, poll_interval=0.001)
 
 
 @pytest.mark.integration
@@ -625,7 +651,7 @@ class TestEdgeCases:
             # If submitted, should fail when waiting
             # Note: In abi3 mode, TianyanError cannot be caught by type
             with pytest.raises(Exception):
-                task.wait(timeout_secs=60.0)
+                task.wait(timeout=60.0)
         except Exception:
             # Immediate rejection is also valid
             pass
@@ -638,7 +664,7 @@ class TestEdgeCases:
         # May succeed or fail depending on backend limits
         try:
             task = available_backend.run([long_circuit], shots=10)
-            results = task.wait(timeout_secs=300.0)
+            results = task.wait(timeout=300.0)
             assert len(results) == 1
         except Exception:
             # Rejection due to circuit size is acceptable
@@ -656,6 +682,7 @@ def test_module_exports() -> None:
     assert hasattr(tianyan, "TianyanError")
     assert hasattr(tianyan, "DeviceStatus")
     assert hasattr(tianyan, "DeviceToll")
+    assert hasattr(tianyan, "DeviceType")
     assert hasattr(tianyan, "CalibrationMode")
 
 

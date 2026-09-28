@@ -9,6 +9,8 @@
 // Any modifications or derivative works of this code must retain this
 // copyright notice, and modified files need to carry a notice indicating
 // that they have been altered from the originals.
+// Modified to expose the upgrading backend status.
+// Modified to configure calibration through run and deprecate submission aliases.
 
 //! Python bindings for [`TianyanBackend`], [`DeviceStatus`], [`DeviceToll`],
 //! and [`CalibrationMode`].
@@ -28,15 +30,15 @@
 //! print(f"{backend.num_qubits()} qubits")
 //! if backend.is_available():
 //!     task = backend.run(["H Q1\nM Q1"], shots=1000)
-//!     # or run_raw / run_with_mode
-//!     task2 = backend.run_with_mode(["H Q1\nM Q1"], shots=1000, mode="disabled")
+//!     # Or submit with calibration disabled:
+//!     task2 = backend.run(["H Q1\nM Q1"], shots=1000, calibration_mode="disabled")
 //! ```
 
 use crate::error::IntoPyResult;
 use crate::task::PyTaskHandle;
 use cqlib_core::circuit::Instruction;
 use cqlib_core::device::Device;
-use cqlib_tianyan::device::{DeviceStatus, DeviceToll, TianyanBackend};
+use cqlib_tianyan::device::{DeviceStatus, DeviceToll, DeviceType, TianyanBackend};
 use cqlib_tianyan::task::CalibrationMode;
 use pyo3::prelude::*;
 use rustworkx_core::petgraph::visit::{EdgeRef, IntoEdgeReferences};
@@ -46,7 +48,7 @@ use rustworkx_core::petgraph::visit::{EdgeRef, IntoEdgeReferences};
 /// A transparent wrapper that [`FromPyObject`] accepts from either a Python
 /// `str` (`"auto"`, `"enabled"`, `"disabled"`) or a `CalibrationMode` object.
 /// This makes function parameters polymorphic without requiring overloads.
-struct CalibrationModeInput(CalibrationMode);
+pub(crate) struct CalibrationModeInput(pub(crate) CalibrationMode);
 
 impl<'a, 'py> FromPyObject<'a, 'py> for CalibrationModeInput {
     type Error = PyErr;
@@ -61,7 +63,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for CalibrationModeInput {
             return Ok(CalibrationModeInput(PyCalibrationMode::new(&s)?.inner));
         }
         Err(pyo3::exceptions::PyTypeError::new_err(
-            "mode must be CalibrationMode or str ('auto', 'enabled', 'disabled')",
+            "calibration mode must be CalibrationMode or str ('auto', 'enabled', 'disabled')",
         ))
     }
 }
@@ -73,6 +75,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for CalibrationModeInput {
 /// - `"calibration"` — Device is being calibrated; submissions may queue.
 /// - `"under_maintenance"` — Temporarily unavailable for maintenance.
 /// - `"offline"` — Device is offline.
+/// - `"upgrading"` — Device is undergoing an upgrade.
 /// - `"unknown"` — Unrecognised status code from the API.
 #[pyclass(name = "DeviceStatus", module = "cqlib_tianyan", from_py_object)]
 #[derive(Clone, Debug)]
@@ -96,6 +99,7 @@ impl PyDeviceStatus {
             DeviceStatus::Calibration => "calibration",
             DeviceStatus::UnderMaintenance => "under_maintenance",
             DeviceStatus::OffLine => "offline",
+            DeviceStatus::Upgrading => "upgrading",
             DeviceStatus::Unknown(_) => "unknown",
         }
     }
@@ -111,6 +115,53 @@ impl PyDeviceStatus {
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
         if let Ok(other_status) = other.extract::<PyDeviceStatus>() {
             self.inner == other_status.inner
+        } else if let Ok(s) = other.extract::<String>() {
+            self.value() == s.as_str()
+        } else {
+            false
+        }
+    }
+}
+
+/// Backend technology classified locally from the machine code.
+///
+/// Values: `"superconducting"`, `"photonic"`, `"ion_trap"`, `"simulator"`.
+#[pyclass(name = "DeviceType", module = "cqlib_tianyan", from_py_object)]
+#[derive(Clone, Debug)]
+pub struct PyDeviceType {
+    inner: DeviceType,
+}
+
+impl From<DeviceType> for PyDeviceType {
+    fn from(inner: DeviceType) -> Self {
+        Self { inner }
+    }
+}
+
+#[pymethods]
+impl PyDeviceType {
+    /// The device type as a string.
+    #[getter]
+    fn value(&self) -> &'static str {
+        match self.inner {
+            DeviceType::Superconducting => "superconducting",
+            DeviceType::Photonic => "photonic",
+            DeviceType::IonTrap => "ion_trap",
+            DeviceType::Simulator => "simulator",
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("DeviceType('{}')", self.value())
+    }
+
+    fn __str__(&self) -> &'static str {
+        self.value()
+    }
+
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
+        if let Ok(other_type) = other.extract::<PyDeviceType>() {
+            self.inner == other_type.inner
         } else if let Ok(s) = other.extract::<String>() {
             self.value() == s.as_str()
         } else {
@@ -170,12 +221,12 @@ impl PyDeviceToll {
 
 /// Controls readout error mitigation when fetching task results.
 ///
-/// Pass to `TianyanBackend.run_with_mode()` to configure behaviour:
+/// Pass as `calibration_mode` to `TianyanBackend.run()` to configure behaviour:
 ///
 /// | Mode | Behaviour |
 /// |------|-----------|
-/// | `"auto"` | Apply mitigation if calibration data is available; fall back to raw (default). |
-/// | `"enabled"` | Always apply mitigation; error if no calibration data exists. |
+/// | `"auto"` | Apply mitigation on superconducting devices if data is available and at most 14 qubits are measured; otherwise return raw counts (default). |
+/// | `"enabled"` | Require a superconducting device and calibration data; reject other device types before submission. |
 /// | `"disabled"` | Never apply mitigation; always return raw counts. |
 #[pyclass(name = "CalibrationMode", module = "cqlib_tianyan", from_py_object)]
 #[derive(Clone, Debug)]
@@ -269,7 +320,7 @@ impl PyCalibrationMode {
 /// backend = platform.get_backend("tianyan-287")
 /// if backend.is_available():
 ///     task = backend.run(["H Q1\nM Q1"], shots=1000)
-///     results = task.wait(timeout_secs=120.0)
+///     results = task.wait(timeout=120.0)
 ///     print(results[0].counts)
 /// ```
 #[pyclass(name = "TianyanBackend", module = "cqlib_tianyan")]
@@ -297,6 +348,12 @@ impl PyTianyanBackend {
         &self.inner.display_name
     }
 
+    /// Backend technology classified locally from the machine code.
+    #[getter]
+    fn device_type(&self) -> PyDeviceType {
+        self.inner.device_type.into()
+    }
+
     /// Current operational status.
     #[getter]
     fn status(&self) -> PyDeviceStatus {
@@ -318,46 +375,69 @@ impl PyTianyanBackend {
     ///
     /// Downloads the backend configuration on first use and reuses the cached
     /// configuration afterwards. Disabled qubits are included in this count.
+    /// Only superconducting backends support this operation.
     fn num_qubits(&self, py: Python<'_>) -> PyResult<usize> {
         self.inner.num_qubits().map_py_err(py)
     }
 
     /// Submit circuits and return a task handle.
     ///
-    /// Readout error mitigation is applied automatically when calibration
-    /// data is available (`CalibrationMode.auto` is the default).
+    /// Only superconducting devices and simulators can submit tasks. Readout error
+    /// mitigation is applied automatically on superconducting devices when data is
+    /// available and at most 14 qubits are measured (`"auto"` is the default).
     ///
     /// # Arguments
     /// * `circuits` - List of QCIS circuit strings.
     /// * `shots` - Number of measurement shots per circuit.
+    /// * `calibration_mode` - Keyword-only calibration policy: `"auto"` (default),
+    ///   `"enabled"`, or `"disabled"`. Accepts a string or `CalibrationMode` object.
+    ///   `"enabled"` rejects non-superconducting devices before submission;
+    ///   missing calibration data raises an error when retrieving results.
     ///
     /// # Returns
     /// A `TaskHandle` that can be used to poll for results.
-    fn run(&self, py: Python<'_>, circuits: Vec<String>, shots: usize) -> PyResult<PyTaskHandle> {
+    #[pyo3(
+        signature = (circuits, shots, *, calibration_mode = CalibrationModeInput(CalibrationMode::Auto)),
+        text_signature = "($self, circuits, shots, *, calibration_mode='auto')"
+    )]
+    fn run(
+        &self,
+        py: Python<'_>,
+        circuits: Vec<String>,
+        shots: usize,
+        calibration_mode: CalibrationModeInput,
+    ) -> PyResult<PyTaskHandle> {
         let circuit_inputs: Vec<cqlib_tianyan::device::CircuitInput> =
             circuits.into_iter().map(|s| s.into()).collect();
         self.inner
-            .run(circuit_inputs, shots)
+            .run_with_mode(circuit_inputs, shots, calibration_mode.0)
             .map_py_err(py)
             .map(PyTaskHandle::from)
     }
 
-    /// Like `run()`, but always returns raw (uncalibrated) counts.
+    /// Deprecated alias for `run(..., calibration_mode="disabled")`.
     fn run_raw(
         &self,
         py: Python<'_>,
         circuits: Vec<String>,
         shots: usize,
     ) -> PyResult<PyTaskHandle> {
-        let circuit_inputs: Vec<cqlib_tianyan::device::CircuitInput> =
-            circuits.into_iter().map(|s| s.into()).collect();
-        self.inner
-            .run_raw(circuit_inputs, shots)
-            .map_py_err(py)
-            .map(PyTaskHandle::from)
+        PyErr::warn(
+            py,
+            &py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+            c"run_raw() is deprecated; use run(..., calibration_mode='disabled')",
+            1,
+        )?;
+        self.run(
+            py,
+            circuits,
+            shots,
+            CalibrationModeInput(CalibrationMode::Disabled),
+        )
     }
 
-    /// Like `run()`, but with an explicit calibration mode.
+    /// Deprecated alias for `run(..., calibration_mode=mode)`.
+    /// `"enabled"` requires a superconducting backend; other types fail before submission.
     ///
     /// # Arguments
     /// * `circuits` - List of QCIS circuit strings.
@@ -372,16 +452,21 @@ impl PyTianyanBackend {
         shots: usize,
         mode: Option<CalibrationModeInput>,
     ) -> PyResult<PyTaskHandle> {
-        let cal_mode = mode.map(|m| m.0).unwrap_or(CalibrationMode::Auto);
-        let circuit_inputs: Vec<cqlib_tianyan::device::CircuitInput> =
-            circuits.into_iter().map(|s| s.into()).collect();
-        self.inner
-            .run_with_mode(circuit_inputs, shots, cal_mode)
-            .map_py_err(py)
-            .map(PyTaskHandle::from)
+        PyErr::warn(
+            py,
+            &py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+            c"run_with_mode() is deprecated; use run(..., calibration_mode=mode)",
+            1,
+        )?;
+        self.run(
+            py,
+            circuits,
+            shots,
+            mode.unwrap_or(CalibrationModeInput(CalibrationMode::Auto)),
+        )
     }
 
-    /// Download the device calibration configuration.
+    /// Download the device calibration configuration (superconducting backends only).
     ///
     /// Returns a `cqlib.device.Device` object populated with topology,
     /// qubit properties, gate errors, and readout fidelities.
@@ -395,8 +480,9 @@ impl PyTianyanBackend {
 
     fn __repr__(&self) -> String {
         format!(
-            "TianyanBackend(name='{}', status='{}')",
+            "TianyanBackend(name='{}', device_type='{}', status='{}')",
             self.inner.name,
+            PyDeviceType::from(self.inner.device_type).value(),
             PyDeviceStatus::from(self.inner.status.clone()).value(),
         )
     }

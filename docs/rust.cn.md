@@ -92,9 +92,23 @@ let platform = TianyanPlatform::from_credentials_with_config(cfg)?;
 let backends = platform.list_backends()?;
 
 for b in &backends {
-    println!("{:30} status={:?}", b.name, b.status);
+    println!("{:30} type={:?} status={:?}", b.name, b.device_type, b.status);
 }
 ```
+
+`backend.device_type` 返回设备的 `DeviceType`。
+
+| `DeviceType` | 设备列表 |
+|---|---|
+| `Simulator`（仿真机） | `tianyan_sw`, `tianyan_s`, `tianyan_tn`, `tianyan_tnn`, `tianyan_sa`, `tianyan_swn` |
+| `Photonic`（光量子） | `tianyan-p2000` |
+| `Superconducting`（超导） | `tianyan176`, `tianyan176-2`, `tianyan24`, `tianyan504`, `tianyan-287`|
+
+仅 `Superconducting` 支持下载配置和读取误差校准；依赖配置的比特数查询也仅支持超导设备。
+
+仅 `Superconducting` 和 `Simulator` 可提交任务，`Photonic` 和 `IonTrap` 在提交前报错。
+
+`Auto` 对非超导设备跳过配置下载和校准，返回原始计数；非超导设备显式设置 `Enabled` 会在提交前报错。`Disabled` 始终返回原始计数。`is_available` 只反映运行状态，不代表设备支持提交任务。
 
 ### 3.2 获取指定后端
 
@@ -105,7 +119,7 @@ println!("已选择: {} ({:?})", backend.name, backend.status);
 
 ### 3.3 查看设备拓扑
 
-校准配置中包含量子比特/耦合器拓扑及硬件特性参数：
+仅超导设备支持以下配置查询。校准配置中包含量子比特/耦合器拓扑及硬件特性参数：
 
 ```rust
 println!("物理比特数: {}", backend.num_qubits()?);
@@ -185,7 +199,7 @@ for r in &results {
 }
 ```
 
-**默认行为**：`wait()` 会在有校准数据时自动应用读取误差矫正（见第6节）。若需要获取原始计数：
+**默认行为**：`wait()` 会对超导设备在有校准数据且被测比特数 ≤ 14 时自动应用读取误差矫正（见第6节）。若需要获取原始计数：
 
 ```rust
 let raw_results = task.wait_raw(Duration::from_secs(120), Duration::from_secs(5))?;
@@ -264,7 +278,8 @@ if let Some(cal) = backend.readout_calibration_data()? {
 
 ### 6.5 自动矫正（推荐）
 
-`wait()` 使用 `CalibrationMode::Auto`（默认）策略，在以下条件**同时**满足时自动下载并应用矫正：
+`wait()` 使用 `CalibrationMode::Auto`（默认）策略，仅对超导设备下载配置，并在以下条件**同时**满足时应用矫正：
+
 1. 后端存在可用的校准数据。
 2. 本次电路**测量的量子比特数 ≤ `AUTO_CALIBRATION_MAX_QUBITS`（14）**。
 
@@ -329,8 +344,8 @@ let task = backend.run(circuits, 1000)?;
 
 | 枚举值 | 行为 |
 |--------|------|
-| `Auto`（**默认**） | 当有校准数据**且**被测比特数 ≤ 14 时应用矫正；否则静默回退到原始计数 |
-| `Enabled` | 无论比特数多少，强制应用矫正；若无校准数据则返回错误（调用方需自行保证内存充足） |
+| `Auto`（**默认**） | 仅超导设备在有校准数据**且**被测比特数 ≤ 14 时应用矫正；否则静默回退到原始计数 |
+| `Enabled` | 仅超导设备可强制应用矫正，不受比特数限制；其他类型在提交前报错，缺少校准数据时也报错（调用方需自行保证内存充足） |
 | `Disabled` | 始终返回原始计数，不进行任何矫正 |
 
 > **`Auto` 的 14 比特阈值**：混淆矩阵内存为 O(4ⁿ)，n > 14 时超过 2 GiB，`Auto` 会自动回退以防 OOM。详见常量 `AUTO_CALIBRATION_MAX_QUBITS`。

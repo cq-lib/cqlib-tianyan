@@ -88,6 +88,8 @@ pub enum DeviceStatus {
     UnderMaintenance,
     /// Device is offline.
     OffLine,
+    /// Device is undergoing an upgrade.
+    Upgrading,
     /// An unknown status code was returned by the API.
     Unknown(i64),
 }
@@ -99,8 +101,40 @@ impl DeviceStatus {
             1 => DeviceStatus::Calibration,
             2 => DeviceStatus::UnderMaintenance,
             3 => DeviceStatus::OffLine,
+            4 => DeviceStatus::Upgrading,
             other => DeviceStatus::Unknown(other),
         }
+    }
+}
+
+/// Backend technology, classified locally from the case-sensitive machine code.
+///
+/// The device-list API does not provide this field. Codes starting with `tianyan_`
+/// are simulators, `tianyan-p` are photonic, and `tianyan-ion` are ion traps.
+/// Other codes starting with `tianyan` are superconducting. Devices without the
+/// `tianyan` prefix are excluded from the backend list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeviceType {
+    Superconducting,
+    Photonic,
+    IonTrap,
+    Simulator,
+}
+
+impl DeviceType {
+    pub fn from_code(code: &str) -> Option<Self> {
+        if !code.starts_with("tianyan") {
+            return None;
+        }
+        Some(if code.starts_with("tianyan_") {
+            Self::Simulator
+        } else if code.starts_with("tianyan-p") {
+            Self::Photonic
+        } else if code.starts_with("tianyan-ion") {
+            Self::IonTrap
+        } else {
+            Self::Superconducting
+        })
     }
 }
 
@@ -128,7 +162,7 @@ struct RawDevice {
     code: String,
     /// Human-readable display name.
     name: Option<String>,
-    /// Operational status code (0=running, 1=calibration, 2=maintenance, 3=offline).
+    /// Operational status code (0=running, 1=calibration, 2=maintenance, 3=offline, 4=upgrading).
     status: i64,
     /// Pricing tier code (1=free, 2=paid).
     #[serde(rename = "isToll")]
@@ -144,13 +178,15 @@ struct CachedConfig {
 
 /// A quantum computing backend available on the Tianyan cloud platform.
 ///
-/// Use [`TianyanBackend::is_available`] to check that the backend is accepting jobs
-/// before submitting circuits.
+/// Use [`TianyanBackend::is_available`] to check the backend's running status.
+/// Task submission additionally requires a superconducting device or simulator.
 pub struct TianyanBackend {
     /// The machine code used as `computerCode` when submitting jobs.
     pub name: String,
     /// User-friendly display name.
     pub display_name: String,
+    /// Backend technology, classified locally from the machine code.
+    pub device_type: DeviceType,
     /// Current operational status.
     pub status: DeviceStatus,
     /// Pricing model.
@@ -166,6 +202,7 @@ impl Clone for TianyanBackend {
         Self {
             name: self.name.clone(),
             display_name: self.display_name.clone(),
+            device_type: self.device_type,
             status: self.status.clone(),
             toll: self.toll.clone(),
             client: self.client.clone(),
@@ -184,6 +221,7 @@ impl std::fmt::Debug for TianyanBackend {
         f.debug_struct("TianyanBackend")
             .field("name", &self.name)
             .field("display_name", &self.display_name)
+            .field("device_type", &self.device_type)
             .field("status", &self.status)
             .field("toll", &self.toll)
             .finish()
@@ -191,16 +229,18 @@ impl std::fmt::Debug for TianyanBackend {
 }
 
 impl TianyanBackend {
-    /// Build a `TianyanBackend` from the raw API record.
-    fn from_raw(raw: RawDevice, client: Arc<TianyanClient>) -> Self {
-        Self {
+    /// Build a backend from a Tianyan API record, excluding non-Tianyan codes.
+    fn from_raw(raw: RawDevice, client: Arc<TianyanClient>) -> Option<Self> {
+        let device_type = DeviceType::from_code(&raw.code)?;
+        Some(Self {
             display_name: raw.name.clone().unwrap_or_else(|| raw.code.clone()),
+            device_type,
             name: raw.code,
             status: DeviceStatus::from_code(raw.status),
             toll: DeviceToll::from_code(raw.is_toll.unwrap_or(0)),
             client,
             cached_config: Mutex::new(None),
-        }
+        })
     }
 
     /// Returns `true` when the device is [`DeviceStatus::Running`].
@@ -234,8 +274,8 @@ impl TianyanBackend {
     /// provides access to the underlying [`cqlib_core::device::Device`] which
     /// contains topology, qubit properties, gate errors, and readout fidelities.
     ///
-    /// If the API did not report qubit count, it will be computed from the
-    /// device topology on first access.
+    /// Only superconducting backends support configuration access. Other device
+    /// types return an error before any download request.
     ///
     /// # Example
     ///
@@ -265,6 +305,7 @@ impl TianyanBackend {
     /// cached configuration afterwards. Disabled qubits are included in this count;
     /// use [`with_device`](Self::with_device) and inspect `device.topology()` when
     /// you need the currently available topology qubit count.
+    /// Only superconducting backends support this operation.
     pub fn num_qubits(&self) -> Result<usize, TianyanError> {
         self.with_device(|device| device.qubits().count())
     }
@@ -273,7 +314,7 @@ impl TianyanBackend {
     /// measurement error mitigation.
     ///
     /// Returns `None` if the backend's config does not contain the required
-    /// readout fidelity arrays.
+    /// readout fidelity arrays. Only superconducting backends support this operation.
     pub fn readout_calibration_data(&self) -> Result<Option<ReadoutCalibrationData>, TianyanError> {
         self.with_config(|c| c.calibration.clone())
     }
@@ -281,15 +322,16 @@ impl TianyanBackend {
     /// Submit one or more circuits on this backend.
     ///
     /// By default, [`wait`](crate::task::TaskHandle::wait) on the returned handle will
-    /// apply readout error mitigation if calibration data is available
+    /// apply readout error mitigation on superconducting devices if calibration data is available
     /// ([`CalibrationMode::Auto`]).  Pass a custom mode via
     /// [`run_with_mode`](Self::run_with_mode) to override this behaviour.
+    /// Only superconducting backends and simulators can submit tasks.
     ///
     /// ```rust,ignore
     /// # use cqlib_tianyan::{TianyanPlatform, device::CircuitInput};
     /// # use std::time::Duration;
     /// let platform = TianyanPlatform::login("your_api_key")?;
-    /// let backend = platform.get_backend("QuantumComputer_S4")?;
+    /// let backend = platform.get_backend("tianyan-287")?;
     ///
     /// // QCIS string — results will be readout-calibrated by default
     /// let task = backend.run(vec!["H Q0\nCZ Q0 Q1\nM Q0 Q1".into()], 1000)?;
@@ -303,6 +345,7 @@ impl TianyanBackend {
     }
 
     /// Like [`run`](Self::run) but with an explicit [`CalibrationMode`].
+    /// `Enabled` is rejected for non-superconducting devices before submission.
     ///
     /// ```rust,ignore
     /// use cqlib_tianyan::task::CalibrationMode;
@@ -316,9 +359,13 @@ impl TianyanBackend {
         shots: usize,
         calibration_mode: CalibrationMode,
     ) -> Result<TaskHandle, TianyanError> {
-        let mut handle = TaskHandle::submit(self.client.clone(), circuits, shots, &self.name)?;
-        handle.calibration_mode = calibration_mode;
-        Ok(handle)
+        TaskHandle::submit(
+            self.client.clone(),
+            circuits,
+            shots,
+            &self.name,
+            calibration_mode,
+        )
     }
 
     /// Like [`run`](Self::run) but always returns **raw** (uncalibrated) counts.
@@ -331,13 +378,13 @@ impl TianyanBackend {
     }
 }
 
-/// Fetch the full device list from the platform and return it as [`TianyanBackend`] objects.
+/// Fetch the device list and return backends whose codes start with `tianyan`.
 pub fn list_backends(client: Arc<TianyanClient>) -> Result<Vec<TianyanBackend>, TianyanError> {
     let resp: crate::client::ApiResponse<Vec<RawDevice>> = client.get(DEVICE_LIST_PATH)?;
     let raw_list = resp.into_data()?;
     Ok(raw_list
         .into_iter()
-        .map(|r| TianyanBackend::from_raw(r, client.clone()))
+        .filter_map(|r| TianyanBackend::from_raw(r, client.clone()))
         .collect())
 }
 

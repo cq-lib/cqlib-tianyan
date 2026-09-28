@@ -23,6 +23,7 @@
 //! | `TaskHandle` | `task.rs` |
 //! | `TianyanConfig` | `config.rs` |
 //! | `DeviceStatus` | `backend.rs` |
+//! | `DeviceType` | `backend.rs` |
 //! | `DeviceToll` | `backend.rs` |
 //! | `CalibrationMode` | `backend.rs` |
 //! | `TianyanError` | `error.rs` |
@@ -33,7 +34,7 @@ pub mod error;
 pub mod platform;
 pub mod task;
 
-use backend::{PyCalibrationMode, PyDeviceStatus, PyDeviceToll, PyTianyanBackend};
+use backend::{PyCalibrationMode, PyDeviceStatus, PyDeviceToll, PyDeviceType, PyTianyanBackend};
 use config::PyTianyanConfig;
 use error::PyTianyanError;
 use platform::PyTianyanPlatform;
@@ -52,6 +53,7 @@ fn binding_python(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyTaskHandle>()?;
     m.add_class::<PyTianyanConfig>()?;
     m.add_class::<PyDeviceStatus>()?;
+    m.add_class::<PyDeviceType>()?;
     m.add_class::<PyDeviceToll>()?;
     m.add_class::<PyCalibrationMode>()?;
 

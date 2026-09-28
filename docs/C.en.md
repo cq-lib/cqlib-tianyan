@@ -200,6 +200,16 @@ for (size_t i = 0; i < n; i++) {
 tianyan_backend_list_free(backends, n);
 ```
 
+**Device types** returned by `tianyan_backend_device_type(backend)`:
+
+| Code | Device type | Devices |
+|---|---|---|
+| `3` | Simulator | `tianyan_sw`, `tianyan_s`, `tianyan_tn`, `tianyan_tnn`, `tianyan_sa`, `tianyan_swn` |
+| `1` | Photonic | `tianyan-p2000` |
+| `0` | Superconducting | `tianyan176`, `tianyan176-2`, `tianyan24`, `tianyan504`, `tianyan-287`, `tianyan-294` |
+
+Passing a `NULL` backend returns `-1`.
+
 **Status codes** returned by `tianyan_backend_status`:
 
 | Code | Meaning |
@@ -208,6 +218,7 @@ tianyan_backend_list_free(backends, n);
 | `1` | Calibrating |
 | `2` | Maintenance |
 | `3` | Offline |
+| `4` | Upgrading |
 | `-1` | Unknown |
 
 **Toll codes** returned by `tianyan_backend_toll`:
@@ -217,6 +228,12 @@ tianyan_backend_list_free(backends, n);
 | `1` | Free |
 | `2` | Paid |
 | `-1` | Unknown |
+
+Only `Superconducting` devices support configuration downloads and readout calibration; qubit-count queries that depend on configuration have the same restriction.
+
+Only `Superconducting` and `Simulator` devices can submit tasks; `Photonic` and `IonTrap` submissions fail locally.
+
+`Auto` skips configuration download and calibration for non-superconducting devices and returns raw counts. Explicitly selecting `Enabled` on a non-superconducting device fails before submission. `Disabled` always returns raw counts. `is_available` reports running status only; it does not guarantee submission support.
 
 ### 3.2 Select a specific backend
 
@@ -246,7 +263,7 @@ if (tianyan_backend_num_qubits(backend, &num_qubits)) {
 
 > **Lifetimes**: `tianyan_backend_name()` and `tianyan_backend_display_name()` return `const char *` pointers whose lifetime is tied to the `TianyanBackendC` object. Do **not** free these strings; do **not** use them after the backend is freed.
 
-`tianyan_backend_num_qubits()` may download and parse the backend configuration on first use. It reports the physical qubit count, including disabled qubits.
+`tianyan_backend_num_qubits()` supports only superconducting devices; other types return failure and set an error. It may download and parse the backend configuration on first use. It reports the physical qubit count, including disabled qubits.
 
 ---
 
@@ -328,7 +345,7 @@ if (!results) {
 }
 ```
 
-**Default behaviour**: `tianyan_task_wait` applies readout error calibration automatically when calibration data is available and the circuit measures ≤ 14 qubits. To always get raw (uncalibrated) counts:
+**Default behaviour**: `tianyan_task_wait` applies readout error calibration automatically on superconducting devices when calibration data is available and the circuit measures ≤ 14 qubits. To always get raw (uncalibrated) counts:
 
 ```c
 TianyanResultList *raw_results =
@@ -414,8 +431,8 @@ Results from `tianyan_task_wait` are returned in the same order as the submitted
 
 | Value | Name | Behaviour |
 |-------|------|-----------|
-| `0` | Auto *(default)* | Apply calibration when data is available **and** the circuit measures ≤ 14 qubits; silently fall back to raw counts otherwise |
-| `1` | Enabled | Always calibrate regardless of qubit count; returns error if no calibration data (caller is responsible for sufficient RAM) |
+| `0` | Auto *(default)* | On superconducting devices, apply calibration when data is available **and** the circuit measures ≤ 14 qubits; silently fall back to raw counts otherwise |
+| `1` | Enabled | Require a superconducting device and calibration data, regardless of qubit count; reject other types before submission (caller is responsible for sufficient RAM) |
 | `2` | Disabled | Always return raw counts; no mitigation applied |
 
 > **The 14-qubit threshold for Auto**: the inverse confusion matrix requires O(4ⁿ) memory where n is the number of measured qubits. At n = 14 that is ~2 GiB; at n = 15 it is ~8 GiB. Above this threshold `Auto` silently falls back to raw counts to prevent out-of-memory crashes.

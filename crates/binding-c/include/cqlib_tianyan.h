@@ -89,6 +89,19 @@ const char *tianyan_backend_name(const struct TianyanBackendC *backend);
 const char *tianyan_backend_display_name(const struct TianyanBackendC *backend);
 
 /*
+ Return the backend technology, classified locally from its machine code.
+
+ | Code | Device type     |
+ |------|-----------------|
+ | 0    | Superconducting |
+ | 1    | Photonic        |
+ | 2    | IonTrap         |
+ | 3    | Simulator       |
+ | -1   | NULL backend    |
+ */
+int tianyan_backend_device_type(const struct TianyanBackendC *backend);
+
+/*
  Return the operational status of the backend as an integer code.
 
  | Code | Status              |
@@ -97,6 +110,7 @@ const char *tianyan_backend_display_name(const struct TianyanBackendC *backend);
  | 1    | Calibration         |
  | 2    | UnderMaintenance    |
  | 3    | OffLine             |
+ | 4    | Upgrading           |
  | -1   | Unknown             |
  */
 int tianyan_backend_status(const struct TianyanBackendC *backend);
@@ -122,6 +136,7 @@ bool tianyan_backend_is_available(const struct TianyanBackendC *backend);
 
  This may download the backend configuration on first use and reuses the cached
  configuration afterwards. Disabled qubits are included in this count.
+ Only superconducting backends support this operation; other types set an error.
 
  Returns `true` on success and `false` on error. On error, call
  `tianyan_last_error()` for details.
@@ -145,6 +160,8 @@ void tianyan_backend_list_free(struct TianyanBackendC **backends, uintptr_t len)
 
 /*
  Submit circuits on this backend with the default calibration mode (`Auto`).
+ Only superconducting devices and simulators can submit tasks. Simulators return
+ raw counts without downloading configuration or applying readout calibration.
 
  - `circuits`: array of `n_circuits` null-terminated QCIS strings.
  - `shots`: number of measurement shots per circuit.
@@ -169,6 +186,7 @@ struct TianyanTaskC *tianyan_backend_run_raw(const struct TianyanBackendC *backe
  Like `tianyan_backend_run()` but with an explicit calibration mode.
 
  `mode`: 0 = Auto, 1 = Enabled, 2 = Disabled.
+ Enabled requires a superconducting device; other types fail before submission.
  */
 struct TianyanTaskC *tianyan_backend_run_with_mode(const struct TianyanBackendC *backend,
                                                    const char *const *circuits,

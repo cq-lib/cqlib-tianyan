@@ -22,7 +22,7 @@
 //! | 1    | Enabled  |
 //! | 2    | Disabled |
 
-use cqlib_tianyan::device::{DeviceStatus, DeviceToll, TianyanBackend};
+use cqlib_tianyan::device::{DeviceStatus, DeviceToll, DeviceType, TianyanBackend};
 use cqlib_tianyan::task::CalibrationMode;
 use std::os::raw::{c_char, c_int};
 
@@ -61,6 +61,29 @@ pub extern "C" fn tianyan_backend_display_name(backend: *const TianyanBackendC) 
     b.0.display_name.as_ptr() as *const c_char
 }
 
+/// Return the backend technology, classified locally from its machine code.
+///
+/// | Code | Device type     |
+/// |------|-----------------|
+/// | 0    | Superconducting |
+/// | 1    | Photonic        |
+/// | 2    | IonTrap         |
+/// | 3    | Simulator       |
+/// | -1   | NULL backend    |
+#[unsafe(no_mangle)]
+pub extern "C" fn tianyan_backend_device_type(backend: *const TianyanBackendC) -> c_int {
+    if backend.is_null() {
+        return -1;
+    }
+    let b = unsafe { &*backend };
+    match b.0.device_type {
+        DeviceType::Superconducting => 0,
+        DeviceType::Photonic => 1,
+        DeviceType::IonTrap => 2,
+        DeviceType::Simulator => 3,
+    }
+}
+
 /// Return the operational status of the backend as an integer code.
 ///
 /// | Code | Status              |
@@ -69,6 +92,7 @@ pub extern "C" fn tianyan_backend_display_name(backend: *const TianyanBackendC) 
 /// | 1    | Calibration         |
 /// | 2    | UnderMaintenance    |
 /// | 3    | OffLine             |
+/// | 4    | Upgrading           |
 /// | -1   | Unknown             |
 #[unsafe(no_mangle)]
 pub extern "C" fn tianyan_backend_status(backend: *const TianyanBackendC) -> c_int {
@@ -81,6 +105,7 @@ pub extern "C" fn tianyan_backend_status(backend: *const TianyanBackendC) -> c_i
         DeviceStatus::Calibration => 1,
         DeviceStatus::UnderMaintenance => 2,
         DeviceStatus::OffLine => 3,
+        DeviceStatus::Upgrading => 4,
         DeviceStatus::Unknown(_) => -1,
     }
 }
@@ -119,6 +144,7 @@ pub extern "C" fn tianyan_backend_is_available(backend: *const TianyanBackendC) 
 ///
 /// This may download the backend configuration on first use and reuses the cached
 /// configuration afterwards. Disabled qubits are included in this count.
+/// Only superconducting backends support this operation; other types set an error.
 ///
 /// Returns `true` on success and `false` on error. On error, call
 /// `tianyan_last_error()` for details.
@@ -196,6 +222,8 @@ fn parse_calibration_mode(mode: c_int) -> Result<CalibrationMode, String> {
 }
 
 /// Submit circuits on this backend with the default calibration mode (`Auto`).
+/// Only superconducting devices and simulators can submit tasks. Simulators return
+/// raw counts without downloading configuration or applying readout calibration.
 ///
 /// - `circuits`: array of `n_circuits` null-terminated QCIS strings.
 /// - `shots`: number of measurement shots per circuit.
@@ -264,6 +292,7 @@ pub extern "C" fn tianyan_backend_run_raw(
 /// Like `tianyan_backend_run()` but with an explicit calibration mode.
 ///
 /// `mode`: 0 = Auto, 1 = Enabled, 2 = Disabled.
+/// Enabled requires a superconducting device; other types fail before submission.
 #[unsafe(no_mangle)]
 pub extern "C" fn tianyan_backend_run_with_mode(
     backend: *const TianyanBackendC,

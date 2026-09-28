@@ -21,6 +21,7 @@
 
 use crate::client::TianyanClient;
 use crate::config::DOWNLOAD_CONFIG_PATH;
+use crate::device::DeviceType;
 use crate::error::TianyanError;
 use cqlib_core::circuit::gate::instruction::Instruction;
 use cqlib_core::circuit::gate::standard_gate::StandardGate;
@@ -158,6 +159,7 @@ fn parse_calibration_time(s: &str) -> Option<time::OffsetDateTime> {
 /// a fully-populated [`Device`].
 ///
 /// This calls the `/qccp-quantum/sdk/experiment/download/config/{machine}` endpoint.
+/// Only superconducting devices support configuration downloads.
 pub fn download_device_config(
     client: &TianyanClient,
     machine: &str,
@@ -168,6 +170,7 @@ pub fn download_device_config(
 
 /// Download and parse the calibration configuration, returning both the
 /// [`Device`] and optional [`ReadoutCalibrationData`] in a single network call.
+/// Rejects non-superconducting devices before sending a request.
 ///
 /// The platform sometimes returns the calibration JSON as a **string** inside
 /// the `data` envelope (double-encoded JSON). This function handles both cases,
@@ -181,6 +184,11 @@ pub fn download_device_config_full(
     client: &TianyanClient,
     machine: &str,
 ) -> Result<(Device, Option<ReadoutCalibrationData>), TianyanError> {
+    if DeviceType::from_code(machine) != Some(DeviceType::Superconducting) {
+        return Err(TianyanError::InvalidInput(format!(
+            "device configuration download is only supported for superconducting devices: {machine}"
+        )));
+    }
     let path = format!("{}/{}", DOWNLOAD_CONFIG_PATH, machine);
     let resp: crate::client::ApiResponse<serde_json::Value> = client.get(&path)?;
     let raw_value = resp.into_data()?;

@@ -218,6 +218,16 @@ for (size_t i = 0; i < n_backends; i++) {
 tianyan_backend_list_free(backends, n_backends);
 ```
 
+`tianyan_backend_device_type(backend)` 返回设备类型：
+
+| 类型码 | 类型 | 设备列表 |
+|---|---|---|
+| `3` | Simulator（仿真机） | `tianyan_sw`, `tianyan_s`, `tianyan_tn`, `tianyan_tnn`, `tianyan_sa`, `tianyan_swn` |
+| `1` | Photonic（光量子） | `tianyan-p2000` |
+| `0` | Superconducting（超导） | `tianyan176`, `tianyan176-2`, `tianyan24`, `tianyan504`, `tianyan-287`, `tianyan-294` |
+
+`backend` 为 `NULL` 时返回 `-1`。
+
 后端状态码和收费码含义：
 
 | 状态码 | 含义 |
@@ -226,6 +236,7 @@ tianyan_backend_list_free(backends, n_backends);
 | `1` | 校准中（Calibration） |
 | `2` | 维护中（UnderMaintenance） |
 | `3` | 离线（OffLine） |
+| `4` | 升级中（Upgrading） |
 | `-1` | 未知（Unknown） |
 
 | 收费码 | 含义 |
@@ -233,6 +244,12 @@ tianyan_backend_list_free(backends, n_backends);
 | `1` | 免费（Free） |
 | `2` | 付费（Paid） |
 | `-1` | 未知（Unknown） |
+
+仅 `Superconducting` 支持下载配置和读取误差校准；依赖配置的比特数查询也仅支持超导设备。
+
+仅 `Superconducting` 和 `Simulator` 可提交任务，`Photonic` 和 `IonTrap` 在提交前报错。
+
+`Auto` 对非超导设备跳过配置下载和校准，返回原始计数；非超导设备显式设置 `Enabled` 会在提交前报错。`Disabled` 始终返回原始计数。`is_available` 只反映运行状态，不代表设备支持提交任务。
 
 ### 3.2 获取指定后端
 
@@ -263,7 +280,7 @@ if (tianyan_backend_num_qubits(backend, &num_qubits)) {
 tianyan_backend_free(backend);
 ```
 
-`tianyan_backend_num_qubits()` 首次调用可能会下载并解析设备配置。它返回物理总比特数，包含禁用比特；可用拓扑比特数请通过设备配置拓扑理解。
+`tianyan_backend_num_qubits()` 仅支持超导设备，其他类型返回失败并设置错误；首次调用可能会下载并解析设备配置。它返回物理总比特数，包含禁用比特；可用拓扑比特数请通过设备配置拓扑理解。
 
 ### 3.3 检查后端是否可用
 
@@ -360,7 +377,7 @@ TianyanTaskC *task = tianyan_platform_submit(
 
 ### 5.1 阻塞等待（推荐）
 
-`tianyan_task_wait` 轮询直到所有线路完成或超时。**默认行为**：当校准数据可用且被测量的量子比特数 ≤ 14 时，自动应用读取误差矫正（`CalibrationMode` 为 `Auto`）：
+`tianyan_task_wait` 轮询直到所有线路完成或超时。**默认行为**：仅对超导设备，当校准数据可用且被测量的量子比特数 ≤ 14 时，自动应用读取误差矫正（`CalibrationMode` 为 `Auto`）：
 
 ```c
 printf("等待结果（超时=120s，轮询间隔=5s）...\n");
@@ -461,8 +478,8 @@ tianyan_task_ids_free(ids, n_ids);
 
 | `mode` 值 | 行为 |
 |-----------|------|
-| `0`（**Auto**，默认） | 当有校准数据**且**被测比特数 ≤ 14 时自动矫正；否则静默回退到原始计数 |
-| `1`（**Enabled**） | 无论比特数多少，强制矫正；若无校准数据则设置错误（调用方需保证内存充足） |
+| `0`（**Auto**，默认） | 仅超导设备在有校准数据**且**被测比特数 ≤ 14 时自动矫正；否则静默回退到原始计数 |
+| `1`（**Enabled**） | 仅超导设备可强制矫正，不受比特数限制；其他类型在提交前报错，缺少校准数据时也报错（调用方需保证内存充足） |
 | `2`（**Disabled**） | 始终返回原始计数，不进行任何矫正 |
 
 > **为何有 14 比特的限制？**

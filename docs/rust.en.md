@@ -92,9 +92,23 @@ let platform = TianyanPlatform::from_credentials_with_config(cfg)?;
 let backends = platform.list_backends()?;
 
 for b in &backends {
-    println!("{:30} status={:?}", b.name, b.status);
+    println!("{:30} type={:?} status={:?}", b.name, b.device_type, b.status);
 }
 ```
+
+`backend.device_type` returns the backend's `DeviceType`.
+
+| `DeviceType` | Devices |
+|---|---|
+| `Simulator` | `tianyan_sw`, `tianyan_s`, `tianyan_tn`, `tianyan_tnn`, `tianyan_sa`, `tianyan_swn` |
+| `Superconducting` | `tianyan176`, `tianyan176-2`, `tianyan24`, `tianyan504`, `tianyan-287`, `tianyan-294` |
+| `Photonic` | `tianyan-p2000` |
+
+Only `Superconducting` devices support configuration downloads and readout calibration; qubit-count queries that depend on configuration have the same restriction.
+
+Only `Superconducting` and `Simulator` devices can submit tasks; `Photonic` and `IonTrap` submissions fail locally.
+
+`Auto` skips configuration download and calibration for non-superconducting devices and returns raw counts. Explicitly selecting `Enabled` on a non-superconducting device fails before submission. `Disabled` always returns raw counts. `is_available` reports running status only; it does not guarantee submission support.
 
 ### 3.2 Select a specific backend
 
@@ -105,7 +119,7 @@ println!("Selected: {} ({:?})", backend.name, backend.status);
 
 ### 3.3 Inspect the device topology
 
-The device calibration configuration includes the qubit/coupler topology and measured hardware properties:
+Configuration access is available only for superconducting devices. The device calibration configuration includes the qubit/coupler topology and measured hardware properties:
 
 ```rust
 println!("Physical qubits: {}", backend.num_qubits()?);
@@ -185,7 +199,7 @@ for r in &results {
 }
 ```
 
-**Default behaviour**: `wait()` applies readout error calibration automatically when calibration data is available (see §6). To always get raw counts:
+**Default behaviour**: `wait()` applies readout error calibration automatically on superconducting devices when calibration data is available and at most 14 qubits are measured (see §6). To always get raw counts:
 
 ```rust
 let raw_results = task.wait_raw(Duration::from_secs(120), Duration::from_secs(5))?;
@@ -264,7 +278,8 @@ if let Some(cal) = backend.readout_calibration_data()? {
 
 ### 6.5 Auto-calibration (recommended)
 
-`wait()` uses the `CalibrationMode::Auto` strategy (default) and automatically downloads and applies calibration when **both** conditions are met:
+`wait()` uses the `CalibrationMode::Auto` strategy (default). It downloads configuration only for superconducting devices and applies calibration when **both** conditions are met:
+
 1. Calibration data is available on the backend.
 2. The circuit measures **≤ `AUTO_CALIBRATION_MAX_QUBITS` (14) qubits**.
 
@@ -333,8 +348,8 @@ Results are returned in the same order as the submitted circuits.
 
 | Variant | Behaviour |
 |---------|-----------|
-| `Auto` *(default)* | Apply calibration when data is available **and** the circuit measures ≤ 14 qubits; silently fall back to raw counts otherwise |
-| `Enabled` | Always calibrate regardless of qubit count; return error if no calibration data (caller is responsible for sufficient RAM) |
+| `Auto` *(default)* | On superconducting devices, apply calibration when data is available **and** the circuit measures ≤ 14 qubits; silently fall back to raw counts otherwise |
+| `Enabled` | Require a superconducting device and calibration data, regardless of qubit count; reject other types before submission (caller is responsible for sufficient RAM) |
 | `Disabled` | Always return raw counts; no mitigation applied |
 
 > **The 14-qubit threshold**: the inverse confusion matrix needs O(4ⁿ) memory; for n > 14 this exceeds 2 GiB, so `Auto` falls back automatically. See `AUTO_CALIBRATION_MAX_QUBITS`.

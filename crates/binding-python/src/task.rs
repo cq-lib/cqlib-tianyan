@@ -25,7 +25,7 @@
 //! partial = task.status()
 //!
 //! # Block until all results are ready (releases GIL while polling)
-//! results = task.wait(timeout_secs=120.0, poll_interval_secs=5.0)
+//! results = task.wait(timeout=120.0, poll_interval=5.0)
 //! for r in results:
 //!     print(r.task_id, r.counts, r.probabilities)
 //! ```
@@ -147,20 +147,15 @@ impl PyTaskHandle {
     /// when the task was submitted (default: `"auto"`).
     ///
     /// # Arguments
-    /// * `timeout_secs` - Maximum wall-clock seconds to wait.
-    /// * `poll_interval_secs` - Seconds between consecutive poll requests (default: `5.0`).
+    /// * `timeout` - Maximum wall-clock time to wait, in seconds (default: `120.0`).
+    /// * `poll_interval` - Time between consecutive poll requests, in seconds (default: `5.0`).
     ///
     /// # Raises
     /// `TianyanError` if the timeout is exceeded before all results are available.
-    #[pyo3(signature = (timeout_secs, poll_interval_secs = 5.0))]
-    fn wait(
-        &self,
-        py: Python<'_>,
-        timeout_secs: f64,
-        poll_interval_secs: f64,
-    ) -> PyResult<Vec<Py<PyAny>>> {
-        let timeout = Duration::from_secs_f64(timeout_secs);
-        let interval = Duration::from_secs_f64(poll_interval_secs);
+    #[pyo3(signature = (timeout = 120.0, poll_interval = 5.0))]
+    fn wait(&self, py: Python<'_>, timeout: f64, poll_interval: f64) -> PyResult<Vec<Py<PyAny>>> {
+        let timeout = Duration::from_secs_f64(timeout);
+        let interval = Duration::from_secs_f64(poll_interval);
         let results = py
             .detach(|| self.inner.wait(timeout, interval))
             .map_py_err(py)?;
@@ -171,17 +166,17 @@ impl PyTaskHandle {
     /// of the calibration mode set at submission time.
     ///
     /// # Arguments
-    /// * `timeout_secs` - Maximum wall-clock seconds to wait.
-    /// * `poll_interval_secs` - Seconds between consecutive poll requests (default: `5.0`).
-    #[pyo3(signature = (timeout_secs, poll_interval_secs = 5.0))]
+    /// * `timeout` - Maximum wall-clock time to wait, in seconds (default: `120.0`).
+    /// * `poll_interval` - Time between consecutive poll requests, in seconds (default: `5.0`).
+    #[pyo3(signature = (timeout = 120.0, poll_interval = 5.0))]
     fn wait_raw(
         &self,
         py: Python<'_>,
-        timeout_secs: f64,
-        poll_interval_secs: f64,
+        timeout: f64,
+        poll_interval: f64,
     ) -> PyResult<Vec<Py<PyAny>>> {
-        let timeout = Duration::from_secs_f64(timeout_secs);
-        let interval = Duration::from_secs_f64(poll_interval_secs);
+        let timeout = Duration::from_secs_f64(timeout);
+        let interval = Duration::from_secs_f64(poll_interval);
         let results = py
             .detach(|| self.inner.wait_raw(timeout, interval))
             .map_py_err(py)?;

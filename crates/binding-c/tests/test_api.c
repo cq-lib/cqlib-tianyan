@@ -133,6 +133,16 @@ static void test_null_safety(void) {
     TEST("tianyan_backend_display_name(NULL) returns NULL");
     EXPECT_NULL(tianyan_backend_display_name(NULL), "should be NULL");
 
+    TEST("tianyan_backend_device_type(NULL) returns -1");
+    {
+        int type = tianyan_backend_device_type(NULL);
+        if (type != -1) {
+            FAIL("expected -1");
+        } else {
+            PASS();
+        }
+    }
+
     TEST("tianyan_backend_status(NULL) returns -1");
     {
         int s = tianyan_backend_status(NULL);

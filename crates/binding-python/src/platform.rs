@@ -9,6 +9,7 @@
 // Any modifications or derivative works of this code must retain this
 // copyright notice, and modified files need to carry a notice indicating
 // that they have been altered from the originals.
+// Modified to accept a calibration policy when submitting circuits.
 
 //! Python bindings for [`TianyanPlatform`] — the top-level entry point.
 //!
@@ -40,14 +41,15 @@
 //!
 //! # Submit circuits
 //! task = platform.submit(["H Q1\nM Q1"], shots=1000, device_name="tianyan-287")
-//! results = task.wait(timeout_secs=120.0)
+//! results = task.wait(timeout=120.0)
 //! ```
 
-use crate::backend::PyTianyanBackend;
+use crate::backend::{CalibrationModeInput, PyTianyanBackend};
 use crate::error::IntoPyResult;
 use crate::task::PyTaskHandle;
 use cqlib_tianyan::TianyanPlatform;
 use cqlib_tianyan::config::TianyanConfig;
+use cqlib_tianyan::task::CalibrationMode;
 use pyo3::prelude::*;
 
 /// Build a `TianyanConfig` from optional keyword arguments.
@@ -187,24 +189,34 @@ impl PyTianyanPlatform {
 
     /// Submit circuits without fetching a backend handle first.
     ///
-    /// Equivalent to `platform.get_backend(device_name).run(circuits, shots)`,
+    /// Equivalent to `platform.get_backend(device_name).run(circuits, shots,
+    /// calibration_mode=calibration_mode)`,
     /// but skips the extra device-list network round-trip.
     ///
     /// # Arguments
     /// * `circuits` - List of QCIS circuit strings.
     /// * `shots` - Number of measurement shots per circuit.
     /// * `device_name` - Target backend identifier.
+    /// * `calibration_mode` - Keyword-only policy: `"auto"` (default), `"enabled"`,
+    ///   or `"disabled"`, as a string or `CalibrationMode` object.
+    ///   Only superconducting devices and simulators can submit tasks;
+    ///   `"enabled"` rejects non-superconducting devices before submission.
+    #[pyo3(
+        signature = (circuits, shots, device_name, *, calibration_mode = CalibrationModeInput(CalibrationMode::Auto)),
+        text_signature = "($self, circuits, shots, device_name, *, calibration_mode='auto')"
+    )]
     fn submit(
         &self,
         py: Python<'_>,
         circuits: Vec<String>,
         shots: usize,
         device_name: &str,
+        calibration_mode: CalibrationModeInput,
     ) -> PyResult<PyTaskHandle> {
         let circuit_inputs: Vec<cqlib_tianyan::device::CircuitInput> =
             circuits.into_iter().map(|s| s.into()).collect();
         self.inner
-            .submit(circuit_inputs, shots, device_name)
+            .submit_with_mode(circuit_inputs, shots, device_name, calibration_mode.0)
             .map_py_err(py)
             .map(PyTaskHandle::from)
     }

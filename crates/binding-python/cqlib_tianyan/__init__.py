@@ -9,6 +9,7 @@
 # Any modifications or derivative works of this code must retain this
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
+# Modified to export the backend device type.
 
 """
 Python bindings for the Tianyan quantum cloud platform client.
@@ -37,6 +38,7 @@ from cqlib_tianyan._cqlib_tianyan import (
     CalibrationMode,
     DeviceStatus,
     DeviceToll,
+    DeviceType,
     TaskHandle,
     TianyanBackend,
     TianyanConfig,
@@ -48,6 +50,7 @@ __all__ = [
     "CalibrationMode",
     "DeviceStatus",
     "DeviceToll",
+    "DeviceType",
     "TaskHandle",
     "TianyanBackend",
     "TianyanConfig",
