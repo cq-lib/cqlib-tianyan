@@ -62,11 +62,8 @@ def versions(tag=None):
     )
     extras = project.get("optional-dependencies", {})
     require(
-        any(
-            item.startswith("cqlib>=") and "1.4" in item
-            for item in extras.get("cqlib", [])
-        ),
-        "Optional extra cqlib must require the Rust-backed package (>=1.4.0b1)",
+        "cqlib>=2.0.0b1" in extras.get("cqlib", []),
+        "Optional extra cqlib must require the Rust-backed package (>=2.0.0b1)",
     )
     for item in project.get("dependencies", []):
         require(

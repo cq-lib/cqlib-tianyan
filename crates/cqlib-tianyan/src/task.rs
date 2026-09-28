@@ -652,7 +652,7 @@ fn build_er_from_counts(
         let inv = 1.0 / total as f64;
         let prob_str: HashMap<String, f64> = counts
             .iter()
-            .map(|(o, &c)| (o.to_string(n), c as f64 * inv))
+            .map(|(o, &c)| (o.to_bitstring(n), c as f64 * inv))
             .collect();
         let cal_probs = calibration::calibrate_probabilities(&prob_str, &local_f00, &local_f11);
         counts = cal_probs

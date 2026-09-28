@@ -17,7 +17,7 @@ def test_installed_cqlib_exposes_device_and_circuit() -> None:
     except ModuleNotFoundError as exc:
         pytest.fail(
             "installed cqlib does not provide cqlib.device / cqlib.circuit "
-            f"({exc}). Need the Rust-backed package (>=1.4.0b1), not 1.3.x."
+            f"({exc}). Need the Rust-backed package (>=2.0.0b1), not 1.3.x."
         )
     assert hasattr(cqlib.device, "Device")
     assert hasattr(cqlib.device, "ExecutionResult")

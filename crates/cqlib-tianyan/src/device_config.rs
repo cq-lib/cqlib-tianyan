@@ -301,7 +301,8 @@ pub fn parse_device_config(
 
     let mut device = Device::new(machine, all_qubit_set, topology)
         .map_err(|e| TianyanError::InvalidInput(format!("failed to build device: {}", e)))?
-        .with_native_gates(native_gates_for_machine(machine));
+        .with_native_gates(native_gates_for_machine(machine))
+        .map_err(|e| TianyanError::InvalidInput(format!("failed to set native gates: {}", e)))?;
 
     // Record disabled qubits separately so callers can inspect them.
     if !invalid_qubit_set.is_empty() {
@@ -430,7 +431,9 @@ pub fn parse_device_config(
         if let Some(&err_pct) = sq_error_map.get(qubit_name) {
             let gate_prop =
                 InstructionProp::new(Instruction::Standard(StandardGate::X2P), err_pct / 100.0);
-            prop = prop.with_native_instruction(gate_prop);
+            prop = prop.with_native_instruction(gate_prop).map_err(|e| {
+                TianyanError::InvalidInput(format!("failed to set qubit gate properties: {}", e))
+            })?;
         }
 
         // Ignore errors for qubits that don't exist in topology
@@ -448,11 +451,17 @@ pub fn parse_device_config(
                             if let (Some(control), Some(target)) =
                                 (parse_qubit(&pair[0]), parse_qubit(&pair[1]))
                             {
-                                let edge_prop =
-                                    EdgeProp::new().with_native_instruction(InstructionProp::new(
+                                let edge_prop = EdgeProp::new()
+                                    .with_native_instruction(InstructionProp::new(
                                         Instruction::Standard(StandardGate::CZ),
                                         err_pct / 100.0,
-                                    ));
+                                    ))
+                                    .map_err(|e| {
+                                        TianyanError::InvalidInput(format!(
+                                            "failed to set coupler gate properties: {}",
+                                            e
+                                        ))
+                                    })?;
                                 let _ = device.add_edge_properties(control, target, edge_prop);
                             }
                         }
