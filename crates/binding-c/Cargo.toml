@@ -9,7 +9,7 @@ license.workspace = true
 crate-type = ["rlib", "staticlib", "cdylib"]
 
 [dependencies]
-cqlib-tianyan = { path = "../cqlib-tianyan", version = "0.1.0-beta.1" }
+cqlib-tianyan = { path = "../cqlib-tianyan", version = "0.1.0-beta.2" }
 cqlib-core.workspace = true
 serde_json.workspace = true
 
