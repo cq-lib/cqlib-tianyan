@@ -27,10 +27,12 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Typing :: Typed",
 ]
+dependencies = ["cqlib>=2.0.0b1"]
 dynamic = ["version"]
 
+# No-op extra kept so `pip install cqlib-tianyan[cqlib]` from older docs still works.
 [project.optional-dependencies]
-cqlib = ["cqlib>=2.0.0b1"]
+cqlib = []
 
 [project.urls]
 Homepage = "https://qc.zdxlz.com/cqlib"

@@ -72,11 +72,9 @@ The source job generates the Python sdist and the Rust `.crate` package.
 `cargo package --locked -p cqlib-tianyan` verifies that the packaged Rust crate
 builds against registry dependencies before the artifact is uploaded.
 
-The Python package does not hard-depend on PyPI `cqlib>=0.1.0` (that range
-installs classic `cqlib 1.3.11`, which lacks `cqlib.device` and
-`cqlib.circuit`). Install the companion extra `cqlib-tianyan[cqlib]` to use the
-Rust-backed `cqlib>=2.0.0b1`. `device_config()` and result
-conversion call those modules at runtime.
+The Python package hard-depends on the Rust-backed PyPI `cqlib>=2.0.0b1`
+(the classic `cqlib 1.3.x` line lacks `cqlib.device` and `cqlib.circuit`).
+`device_config()` and result conversion call those modules at runtime.
 
 ## Downloading and Publishing
 
