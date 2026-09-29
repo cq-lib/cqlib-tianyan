@@ -45,6 +45,9 @@ from cqlib_tianyan._cqlib_tianyan import (
     TianyanError,
     TianyanPlatform,
 )
+from importlib.metadata import version as _version
+
+__version__ = _version("cqlib-tianyan")
 
 __all__ = [
     "CalibrationMode",
@@ -56,4 +59,5 @@ __all__ = [
     "TianyanConfig",
     "TianyanError",
     "TianyanPlatform",
+    "__version__",
 ]
