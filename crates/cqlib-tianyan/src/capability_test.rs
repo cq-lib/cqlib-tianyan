@@ -63,6 +63,10 @@ impl MockApi {
                         }
                         Err(e) => panic!("mock accept failed: {e}"),
                     };
+                    // On BSD/macOS the accepted socket inherits O_NONBLOCK from the
+                    // listener, which would make reads fail with EAGAIN and render the
+                    // read timeout inert; force blocking mode before setting it.
+                    stream.set_nonblocking(false).unwrap();
                     stream
                         .set_read_timeout(Some(Duration::from_secs(2)))
                         .unwrap();
