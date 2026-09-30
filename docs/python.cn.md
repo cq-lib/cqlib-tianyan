@@ -27,7 +27,7 @@
 pip install cqlib-tianyan
 ```
 
-**依赖要求**：Python >= 3.10
+**依赖要求**：Python >= 3.10。安装时会自动拉取 `cqlib>=2.0.0b1`（结果对象与设备配置依赖它；请勿改装 PyPI 上的经典版 `cqlib 1.3.x`，其不含 `cqlib.device` / `cqlib.circuit`）。
 
 ### 从源码安装（开发）
 

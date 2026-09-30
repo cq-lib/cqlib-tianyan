@@ -27,7 +27,7 @@ A complete guide to using the **cqlib-tianyan** Python library to authenticate w
 pip install cqlib-tianyan
 ```
 
-**Requirements**: Python >= 3.10
+**Requirements**: Python >= 3.10. Installation automatically pulls in `cqlib>=2.0.0b1` (required for result objects and device configuration; the classic PyPI `cqlib 1.3.x` is not compatible — it lacks `cqlib.device` / `cqlib.circuit`).
 
 ### From Source (Development)
 

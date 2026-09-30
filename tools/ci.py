@@ -60,16 +60,11 @@ def versions(tag=None):
         project["requires-python"] == ">=3.10",
         "Require Python >=3.10",
     )
-    extras = project.get("optional-dependencies", {})
     require(
-        "cqlib>=2.0.0b1" in extras.get("cqlib", []),
-        "Optional extra cqlib must require the Rust-backed package (>=2.0.0b1)",
+        "cqlib>=2.0.0b1" in project.get("dependencies", []),
+        "Hard-require the Rust-backed cqlib>=2.0.0b1; classic PyPI cqlib 1.3.x "
+        "lacks cqlib.device / cqlib.circuit",
     )
-    for item in project.get("dependencies", []):
-        require(
-            not str(item).startswith("cqlib"),
-            "Do not require classic PyPI cqlib 1.3.x; use the optional cqlib extra",
-        )
     for member in ("binding-python", "binding-c"):
         manifest = read_toml(ROOT / "crates" / member / "Cargo.toml")
         require(
@@ -208,11 +203,7 @@ def verify_wheel(directory=DIST):
             python,
             "-I",
             "-c",
-            "import importlib.util; "
-            "missing = importlib.util.find_spec('cqlib') is None; "
-            "print('companion cqlib: not installed') if missing else "
-            "(__import__('cqlib.device'), __import__('cqlib.circuit'), "
-            "print('companion cqlib OK'))",
+            "import cqlib.device, cqlib.circuit; print('companion cqlib OK')",
             cwd=directory,
         )
         run(

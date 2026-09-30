@@ -35,6 +35,8 @@ Example:
 from typing import List, Optional, final
 from cqlib.device import ExecutionResult, Device
 
+__version__: str
+
 @final
 class TianyanError(RuntimeError):
     """
@@ -581,4 +583,5 @@ __all__ = [
     "TianyanBackend",
     "TaskHandle",
     "TianyanPlatform",
+    "__version__",
 ]

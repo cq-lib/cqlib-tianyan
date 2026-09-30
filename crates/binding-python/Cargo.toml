@@ -1,6 +1,6 @@
 [package]
 name = "binding-python"
-version = "0.1.0-beta.1"
+version = "0.1.0-beta.2"
 edition.workspace = true
 rust-version.workspace = true
 license-file.workspace = true
@@ -12,6 +12,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 pyo3 = { version = "0.29", features = ["abi3-py310"] }
-cqlib-tianyan = { path = "../cqlib-tianyan", version = "0.1.0-beta.1" }
+cqlib-tianyan = { path = "../cqlib-tianyan", version = "0.1.0-beta.2" }
 cqlib-core = { workspace = true }
 rustworkx-core = { workspace = true }
