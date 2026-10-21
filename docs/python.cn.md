@@ -426,3 +426,30 @@ for r in results:
     print(f"计数: {r.counts}")
     print(f"概率: {r.probabilities}")
 ```
+
+## 本地融合工作流与融合云客户端
+
+融合工作流随 wheel 安装，公共入口为 `cqlib_tianyan.fusion`，兼容旧 `cqfusion` 导入与命令。示例在 `examples/fusion/{iterative,batch,runtime,legacy}`。
+
+```bash
+# 从仓库根目录运行；mock 量子执行无需登录
+cqfusion validate examples/fusion/iterative
+cqfusion run-local examples/fusion/iterative --workdir /tmp/fusion-run --auto-confirm
+```
+
+```python
+import os
+from cqlib_tianyan import TianyanPlatform
+from cqlib_tianyan.fusion.client import FusionClient
+from cqlib_tianyan.fusion.exceptions import ConfirmationRequired
+
+platform = TianyanPlatform.login(os.environ["TIANYAN_API_KEY"])
+client = FusionClient(platform=platform)  # 与量子客户端共享会话
+try:
+    job = client.submit(name="demo", package="task.zip")
+except ConfirmationRequired as pending:
+    print(pending.job.id, pending.plans)
+    # 用户选定方案后调用 client.confirm(pending.job.id, plan_id)
+```
+
+上传、推荐、确认、查询和下载由 Rust 执行；Python 提供原有数据类。智能提交默认等待确认，CLI 退出码为 2；`--auto-confirm` 或 `--plan` 才确认入队。量子运行通过已有平台的 backend 和 TaskHandle；旧 cqlib 仅用于可选转译。详细字段、兼容和验收边界见 [融合迁移说明](fusion-migration.md)。

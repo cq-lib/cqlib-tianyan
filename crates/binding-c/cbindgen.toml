@@ -24,7 +24,7 @@ typedef struct TianyanResultList TianyanResultList;
 # Force-include these opaque types so cbindgen emits function signatures
 # that reference them.
 include = ["TianyanBackendC", "TianyanTaskC", "TianyanResultList",
-           "TianyanPlatformC", "TianyanConfigC"]
+           "TianyanPlatformC", "TianyanConfigC", "TianyanFusionC"]
 
 [parse]
 parse_deps = true

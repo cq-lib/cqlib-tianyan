@@ -31,6 +31,7 @@
 pub mod backend;
 pub mod config;
 pub mod error;
+pub mod fusion;
 pub mod platform;
 pub mod task;
 
@@ -48,6 +49,14 @@ fn binding_python(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // referenced in `#[pymethods]` error conversions at import time.
     m.add("TianyanError", py.get_type::<PyTianyanError>())?;
 
+    m.add(
+        "FusionNativeError",
+        py.get_type::<fusion::FusionNativeError>(),
+    )?;
+    m.add_class::<fusion::PyFusionClient>()?;
+    m.add_class::<fusion::PyFusionSchedule>()?;
+    m.add_class::<fusion::PyFusionDecision>()?;
+    m.add_class::<fusion::PyFusionJob>()?;
     m.add_class::<PyTianyanPlatform>()?;
     m.add_class::<PyTianyanBackend>()?;
     m.add_class::<PyTaskHandle>()?;

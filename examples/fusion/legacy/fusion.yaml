@@ -1,0 +1,17 @@
+schema_version: "1.0"
+name: fusion-legacy-demo
+entrypoint: main:app
+mode: generic
+
+profile:
+  gate_set: [RZ, X]
+  logical_qubits: 2
+
+resources:
+  # Soft hints for intelligent dispatch. A binding is created only after confirm.
+  quantum: tianyan_sw
+  hpc: local-hpc
+
+runtime:
+  max_rounds: 1
+  checkpoint: false

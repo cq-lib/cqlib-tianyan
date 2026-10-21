@@ -45,5 +45,6 @@
 pub mod backend;
 pub mod config;
 pub mod error;
+pub mod fusion;
 pub mod platform;
 pub mod task;

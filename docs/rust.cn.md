@@ -434,3 +434,9 @@ let platform = TianyanPlatform::login(&api_key)?;
     Ok(())
 }
 ```
+
+## 融合 SDK
+
+`platform.fusion()` 返回共享认证的 `fusion::FusionClient`，也可用 `FusionClient::connect(host, token, api_key, timeout_secs)` 独立连接。支持上传、保存、推荐、确认、提交、列表、详情、事件、子任务、等待、删除和原子下载。
+
+`submit(&SubmitOptions)` 返回 `SubmitOutcome`；`awaiting_confirmation=true` 表示草稿等待选择方案，尚未入队。任务/方案保留 `serde_json::Value` 原始字段，错误使用独立 `FusionError`，包含 HTTP 和业务错误信息。GET 的有限重试不会应用于 POST/DELETE；401 刷新沿用平台配置。字段与完整验收要求见 [融合迁移说明](fusion-migration.md)。

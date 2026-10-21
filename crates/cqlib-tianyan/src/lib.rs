@@ -57,6 +57,7 @@ pub mod config;
 pub mod device;
 pub mod device_config;
 pub mod error;
+pub mod fusion;
 pub mod platform;
 pub mod task;
 
@@ -66,6 +67,11 @@ pub use device::{CircuitInput, DeviceStatus, DeviceToll, DeviceType, TianyanBack
 pub use error::TianyanError;
 pub use platform::TianyanPlatform;
 pub use task::{CalibrationMode, TaskHandle};
+
+pub use fusion::{
+    FusionCandidate, FusionClient, FusionDecision, FusionError, FusionSchedule, SubmitOptions,
+    SubmitOutcome,
+};
 
 #[cfg(test)]
 mod capability_test;

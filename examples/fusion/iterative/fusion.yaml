@@ -1,0 +1,18 @@
+schema_version: "1.0"
+name: fusion-iterative-demo
+entrypoint: main:app
+mode: iterative
+
+profile:
+  gate_set: [CZ, RZ, SX]
+  logical_qubits: 4
+  estimated_physical_qubits: 6
+
+resources:
+  # Soft hints for intelligent dispatch. A binding is created only after confirm.
+  quantum: tianyan176
+  hpc: cloud-hpc-batch
+
+runtime:
+  max_rounds: 3
+  checkpoint: true

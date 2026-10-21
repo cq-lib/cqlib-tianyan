@@ -1,0 +1,18 @@
+schema_version: "1.0"
+name: fusion-runtime-demo
+entrypoint: main:app
+mode: runtime
+
+profile:
+  gate_set: [RZ, SX]
+  logical_qubits: 6
+  estimated_physical_qubits: 8
+
+resources:
+  # Soft hints for intelligent dispatch. A binding is created only after confirm.
+  quantum: tianyan176
+  hpc: cloud-hpc-batch
+
+runtime:
+  max_rounds: 5
+  checkpoint: true

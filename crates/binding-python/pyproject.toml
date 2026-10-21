@@ -27,10 +27,12 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Typing :: Typed",
 ]
+dependencies = ["pyyaml>=6.0"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 cqlib = ["cqlib>=2.0.0b1"]
+dev = ["pytest>=7.0"]
 
 [project.urls]
 Homepage = "https://qc.zdxlz.com/cqlib"
@@ -48,10 +50,14 @@ markers = [
 [tool.maturin]
 features = ["pyo3/extension-module"]
 module-name = "cqlib_tianyan._cqlib_tianyan"
-include-python-files = ["cqlib_tianyan/**", ]
+python-source = "."
+python-packages = ["cqlib_tianyan", "cqfusion"]
+include-python-files = ["cqlib_tianyan/**", "cqfusion/**"]
 include = [{ path = "cqlib_tianyan/py.typed", format = ["sdist", "wheel"] }]
 exclude = [
     "cqlib_tianyan/**/__pycache__",
     "cqlib_tianyan/**/*.pyc",
+    "cqfusion/**/__pycache__",
+    "cqfusion/**/*.pyc",
 ]
-sdist-include = ["Cargo.toml", "Cargo.lock", "src/**/*", "cqlib_tianyan/**/*"]
+sdist-include = ["Cargo.toml", "Cargo.lock", "src/**/*", "cqlib_tianyan/**/*", "cqfusion/**/*"]

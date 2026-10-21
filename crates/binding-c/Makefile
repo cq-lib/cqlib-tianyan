@@ -22,7 +22,7 @@ else
     SYS_LIBS := -framework Security -framework CoreFoundation -framework SystemConfiguration -lc++
 endif
 
-.PHONY: all release example test clean
+.PHONY: all release example fusion-example test clean
 
 ## Build debug library and regenerate the C header
 all:
@@ -41,12 +41,18 @@ example: all
 	@echo "-------------------------------------------"
 	example/basic_usage
 
+## Build the fusion example without logging in or making a network request.
+fusion-example: all
+	$(CC) -I$(INCLUDE) example/fusion_usage.c $(LIB_DEBUG) $(SYS_LIBS) -o example/fusion_usage
+
 ## Build and run tests/test_api.c (offline, no API key needed)
 test: all
 	$(CC) -I$(INCLUDE) tests/test_api.c $(LIB_DEBUG) $(SYS_LIBS) -o tests/test_api
 	@echo ""
 	tests/test_api
+	$(CC) -I$(INCLUDE) tests/test_fusion.c $(LIB_DEBUG) $(SYS_LIBS) -o tests/test_fusion
+	tests/test_fusion
 
 ## Remove compiled C binaries (does not clean Rust build artifacts)
 clean:
-	rm -f example/basic_usage tests/test_api
+	rm -f example/basic_usage example/fusion_usage tests/test_api tests/test_fusion

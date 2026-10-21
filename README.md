@@ -97,6 +97,17 @@ tianyan_platform_free(p);
 
 → [完整 C 教程](docs/C.cn.md)
 
+### 测试环境与系统代理
+
+访问自建或测试环境域名（例如内网 IP）时，若本机开着系统 HTTP 代理，Rust 的 `reqwest` 会把请求也交给代理，常见表现是登录接口返回 **502**。请先设置：
+
+```sh
+export NO_PROXY=223.244.15.5
+# 或多个地址：export NO_PROXY=223.244.15.5,localhost,127.0.0.1
+```
+
+再用 `TianyanConfig::custom("223.244.15.5:30002")` 并把 `scheme` 设为 `"http"`。
+
 ---
 
 ## 语言绑定
@@ -167,3 +178,7 @@ maturin build --release
 ## 许可证
 
 [Apache License 2.0](LICENSE.txt) · Copyright © China Telecom Quantum Group 2026
+
+## 超量融合工作流
+
+新增 `cqlib_tianyan.fusion` 工作流子包及 `cqfusion` 兼容入口。融合云 API 在 Rust 中实现，Python 与 C 共用；本地和 Slurm 编排仍由 Python 执行。示例位于 `examples/fusion/`，用法与验收状态见 [融合迁移说明](docs/fusion-migration.md)。

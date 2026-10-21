@@ -68,7 +68,7 @@ struct LoginRequest<'a> {
 #[derive(Deserialize)]
 struct LoginResponse {
     code: i64,
-    #[serde(default)]
+    #[serde(alias = "msg", default)]
     message: Option<String>,
     data: Option<LoginData>,
 }
@@ -82,6 +82,14 @@ struct LoginData {
 ///
 /// This performs a blocking `POST` to the platform's login endpoint.
 pub fn login(api_key: &str, config: &TianyanConfig) -> Result<Credentials, TianyanError> {
+    login_with_timeout(api_key, config, std::time::Duration::from_secs(60))
+}
+
+pub(crate) fn login_with_timeout(
+    api_key: &str,
+    config: &TianyanConfig,
+    timeout: std::time::Duration,
+) -> Result<Credentials, TianyanError> {
     let url = format!("{}{}", config.base_url(), LOGIN_PATH);
     let body = LoginRequest {
         grant_type: "openId",
@@ -92,8 +100,11 @@ pub fn login(api_key: &str, config: &TianyanConfig) -> Result<Credentials, Tiany
     let client = reqwest::blocking::Client::new();
     let resp: LoginResponse = client
         .post(&url)
+        .timeout(timeout)
         .form(&body)
         .send()
+        .map_err(TianyanError::Http)?
+        .error_for_status()
         .map_err(TianyanError::Http)?
         .json()
         .map_err(TianyanError::Http)?;

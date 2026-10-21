@@ -27,6 +27,11 @@ typedef struct TianyanResultList TianyanResultList;
 typedef struct TianyanBackendC TianyanBackendC;
 
 /*
+ Opaque fusion handle. Free with tianyan_fusion_free, never C free().
+ */
+typedef struct TianyanFusionC TianyanFusionC;
+
+/*
  Opaque handle to the Tianyan platform client.
 
  Obtain via `tianyan_platform_login()` or `tianyan_platform_from_credentials()`.
@@ -214,6 +219,88 @@ void tianyan_error_clear(void);
  Passing `NULL` is safe and does nothing.
  */
 void tianyan_string_free(char *s);
+
+/*
+ Shares platform credentials, including future refreshes. The platform may
+ be freed after this call; the fusion handle keeps the session alive.
+ */
+struct TianyanFusionC *tianyan_fusion_from_platform(const struct TianyanPlatformC *platform);
+
+/*
+ Connect with API key, token, or both (no credential persistence).
+ host must be an HTTP(S) origin. token/api_key may be NULL, but not both.
+ */
+struct TianyanFusionC *tianyan_fusion_connect(const char *host,
+                                              const char *token,
+                                              const char *api_key,
+                                              double timeout_secs);
+
+/*
+ Release a fusion handle. NULL is a no-op. Do not free a handle while another
+ thread is using it, and never call this function twice for the same handle.
+ */
+void tianyan_fusion_free(struct TianyanFusionC *client);
+
+/*
+ Returns uploaded package metadata as JSON; package is a UTF-8 file path.
+ */
+char *tianyan_fusion_upload(const struct TianyanFusionC *client, const char *package);
+
+/*
+ options_json is a SubmitOptions object: name, package, dispatch_mode,
+ dispatch_preference, quantum_resource, hpc_resource, auto_confirm, plan_id.
+ Save uploads the package and creates a draft; it never enqueues execution.
+ */
+char *tianyan_fusion_save(const struct TianyanFusionC *client, const char *options_json);
+
+/*
+ Returns {awaiting_confirmation, job, plans}. awaiting_confirmation=true is
+ successful draft creation, NOT an error and NOT an enqueued task.
+ */
+char *tianyan_fusion_submit(const struct TianyanFusionC *client, const char *options_json);
+
+/*
+ preference may be NULL (balanced); resource hints may be NULL.
+ */
+char *tianyan_fusion_recommend(const struct TianyanFusionC *client,
+                               const char *task_id,
+                               const char *preference,
+                               const char *quantum_hint,
+                               const char *hpc_hint);
+
+/*
+ Confirm an existing recommendation and enqueue its task.
+ */
+char *tianyan_fusion_confirm(const struct TianyanFusionC *client,
+                             const char *task_id,
+                             const char *plan_id);
+
+/*
+ query_json is an object of name/status/dispatch_mode/limit/offset. NULL
+ uses the server defaults. Returns a JSON array of task objects.
+ */
+char *tianyan_fusion_list(const struct TianyanFusionC *client, const char *query_json);
+
+char *tianyan_fusion_get(const struct TianyanFusionC *client, const char *task_id);
+
+char *tianyan_fusion_events(const struct TianyanFusionC *client, const char *task_id);
+
+char *tianyan_fusion_subtasks(const struct TianyanFusionC *client, const char *task_id);
+
+char *tianyan_fusion_delete(const struct TianyanFusionC *client, const char *task_id);
+
+char *tianyan_fusion_wait(const struct TianyanFusionC *client,
+                          const char *task_id,
+                          double timeout_secs,
+                          double poll_interval_secs);
+
+/*
+ Downloads atomically to dest_dir and returns {"path":"..."}. On any
+ failure returns NULL; tianyan_last_error() contains structured error JSON.
+ */
+char *tianyan_fusion_download(const struct TianyanFusionC *client,
+                              const char *task_id,
+                              const char *dest_dir);
 
 /*
  Authenticate with the Tianyan platform using an API key.

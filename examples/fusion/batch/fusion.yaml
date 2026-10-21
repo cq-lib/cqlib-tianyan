@@ -1,0 +1,18 @@
+schema_version: "1.0"
+name: fusion-batch-demo
+entrypoint: main:app
+mode: batch
+
+profile:
+  gate_set: [CZ, RZ, SX]
+  logical_qubits: 8
+  estimated_physical_qubits: 12
+
+resources:
+  # Soft hints for intelligent dispatch. A binding is created only after confirm.
+  quantum: tianyan504
+  hpc: cloud-hpc-batch
+
+runtime:
+  max_rounds: 2
+  checkpoint: true

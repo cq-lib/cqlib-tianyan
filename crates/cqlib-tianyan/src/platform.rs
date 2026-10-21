@@ -71,6 +71,11 @@ pub struct TianyanPlatform {
 }
 
 impl TianyanPlatform {
+    /// Fusion cloud client sharing this platform's authentication session.
+    pub fn fusion(&self) -> crate::fusion::FusionClient {
+        crate::fusion::FusionClient::from_client(self.client.clone())
+    }
+
     /// Authenticate with `api_key`.
     ///
     /// By default credentials are saved to `~/.cqlib/tianyan/credentials.json`

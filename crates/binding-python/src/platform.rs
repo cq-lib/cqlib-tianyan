@@ -81,7 +81,7 @@ fn build_config(
 /// `wait_raw()` polling so other Python threads remain active.
 #[pyclass(name = "TianyanPlatform", module = "cqlib_tianyan")]
 pub struct PyTianyanPlatform {
-    inner: TianyanPlatform,
+    pub(crate) inner: TianyanPlatform,
     /// Stored for display in `__repr__`.
     base_url: String,
 }
@@ -219,6 +219,52 @@ impl PyTianyanPlatform {
             .submit_with_mode(circuit_inputs, shots, device_name, calibration_mode.0)
             .map_py_err(py)
             .map(PyTaskHandle::from)
+    }
+
+    /// Upload a fusion package and return the top recommendations.
+    ///
+    /// An empty candidate list means the caller should switch to `manual`.
+    #[pyo3(signature = (package, strategy="balanced"))]
+    fn fusion_schedule(
+        &self,
+        py: Python<'_>,
+        package: &str,
+        strategy: &str,
+    ) -> PyResult<crate::fusion::PyFusionSchedule> {
+        py.detach(|| {
+            self.inner
+                .fusion()
+                .schedule_package(std::path::Path::new(package), strategy)
+        })
+        .map(|inner| crate::fusion::PyFusionSchedule { inner })
+        .map_err(crate::fusion::py_error)
+    }
+
+    /// Submit a decision produced by `FusionSchedule.select` or `manual`.
+    fn fusion_submit(
+        &self,
+        py: Python<'_>,
+        name: &str,
+        decision: &crate::fusion::PyFusionDecision,
+    ) -> PyResult<crate::fusion::PyFusionJob> {
+        let client = self.inner.fusion();
+        let task = py
+            .detach(|| client.submit_decision(name, &decision.inner))
+            .map_err(crate::fusion::py_error)?;
+        let task_id = task
+            .get("id")
+            .and_then(|value| value.as_str())
+            .ok_or_else(|| {
+                crate::fusion::py_error(cqlib_tianyan::FusionError::invalid(
+                    "submit response is missing id",
+                ))
+            })?
+            .to_owned();
+        Ok(crate::fusion::PyFusionJob {
+            client,
+            task_id,
+            snapshot: task.to_string(),
+        })
     }
 
     fn __repr__(&self) -> String {

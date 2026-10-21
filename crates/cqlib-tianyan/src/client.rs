@@ -62,7 +62,7 @@ impl<T> ApiResponse<T> {
 
 /// Synchronous HTTP client with automatic token management and retry logic.
 pub struct TianyanClient {
-    http: reqwest::blocking::Client,
+    pub(crate) http: reqwest::blocking::Client,
     pub(crate) config: TianyanConfig,
     credentials: Arc<Mutex<Credentials>>,
 }
@@ -84,6 +84,28 @@ impl TianyanClient {
         })
     }
 
+    /// Explicit re-authentication updates all handles sharing this client.
+    pub fn login_with_key(&self, api_key: &str) -> Result<String, TianyanError> {
+        self.login_with_key_timeout(api_key, Duration::from_secs(60))
+    }
+
+    pub(crate) fn login_with_key_timeout(
+        &self,
+        api_key: &str,
+        timeout: Duration,
+    ) -> Result<String, TianyanError> {
+        let credentials = auth::login_with_timeout(api_key, &self.config, timeout)?;
+        if self.config.save_credentials {
+            auth::save_credentials(&credentials, &self.config.credentials_path)?;
+        }
+        let token = credentials.access_token.clone();
+        *self
+            .credentials
+            .lock()
+            .map_err(|_| TianyanError::Auth("credential mutex poisoned".into()))? = credentials;
+        Ok(token)
+    }
+
     /// Return a clone of the current credentials.
     pub fn credentials(&self) -> Result<Credentials, TianyanError> {
         self.credentials
@@ -93,7 +115,7 @@ impl TianyanClient {
     }
 
     /// Build the two auth headers expected by the Tianyan platform.
-    fn auth_headers(token: &str) -> reqwest::header::HeaderMap {
+    pub(crate) fn auth_headers(token: &str) -> reqwest::header::HeaderMap {
         use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
         let mut headers = HeaderMap::new();
         if let (Ok(k1), Ok(v1)) = (
@@ -109,7 +131,16 @@ impl TianyanClient {
     }
 
     /// Re-login using the stored `api_key` and update the token in place.
-    fn refresh_token(&self) -> Result<String, TianyanError> {
+    pub(crate) fn refresh_token(&self) -> Result<String, TianyanError> {
+        self.refresh_token_timeout(Duration::from_secs(60))
+    }
+
+    pub(crate) fn refresh_token_timeout(&self, timeout: Duration) -> Result<String, TianyanError> {
+        if !self.config.auto_refresh {
+            return Err(TianyanError::Auth(
+                "automatic token refresh is disabled".into(),
+            ));
+        }
         let api_key = {
             let guard = self
                 .credentials
@@ -117,11 +148,18 @@ impl TianyanClient {
                 .map_err(|_| TianyanError::Auth("credential mutex poisoned".into()))?;
             guard.api_key.clone()
         };
-        let new_creds = auth::login(&api_key, &self.config)?;
+        if api_key.is_empty() {
+            return Err(TianyanError::Auth(
+                "token expired; provide an API key or a fresh token".into(),
+            ));
+        }
+        let new_creds = auth::login_with_timeout(&api_key, &self.config, timeout)?;
         let token = new_creds.access_token.clone();
 
         // Persist refreshed credentials
-        auth::save_credentials(&new_creds, &self.config.credentials_path)?;
+        if self.config.save_credentials {
+            auth::save_credentials(&new_creds, &self.config.credentials_path)?;
+        }
 
         {
             let mut guard = self
@@ -134,14 +172,18 @@ impl TianyanClient {
     }
 
     /// Get the current token, proactively refreshing if expired.
-    fn current_token(&self) -> Result<String, TianyanError> {
+    pub(crate) fn current_token(&self) -> Result<String, TianyanError> {
+        self.current_token_timeout(Duration::from_secs(60))
+    }
+
+    pub(crate) fn current_token_timeout(&self, timeout: Duration) -> Result<String, TianyanError> {
         let guard = self
             .credentials
             .lock()
             .map_err(|_| TianyanError::Auth("credential mutex poisoned".into()))?;
         if guard.is_token_expired() {
             drop(guard);
-            self.refresh_token()
+            self.refresh_token_timeout(timeout)
         } else {
             Ok(guard.access_token.clone())
         }

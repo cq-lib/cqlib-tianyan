@@ -15,3 +15,6 @@ pyo3 = { version = "0.29", features = ["abi3-py310"] }
 cqlib-tianyan = { path = "../cqlib-tianyan", version = "0.1.0-beta.1" }
 cqlib-core = { workspace = true }
 rustworkx-core = { workspace = true }
+
+serde.workspace = true
+serde_json.workspace = true

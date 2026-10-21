@@ -960,3 +960,13 @@ cleanup:
 ```
 
 `"00"` 和 `"11"` 各占约 50%，符合 Bell 态 |Φ+⟩ 的理论分布。
+
+## 融合接口
+
+头文件提供 `TianyanFusionC` 与 `tianyan_fusion_*`。通过 `tianyan_fusion_from_platform(platform)` 共享会话，返回句柄独立持有客户端；之后释放平台不影响融合句柄。也可 `tianyan_fusion_connect(host, token, api_key, timeout_secs)`，token/api_key 可有一个为 NULL。
+
+保存与提交接收 JSON：`{"name":"demo","package":"task.zip","dispatch_mode":"intelligent","dispatch_preference":"balanced"}`。可选字段为 quantum_resource、hpc_resource、auto_confirm、plan_id。未知字段会报错。submit 返回 `{"awaiting_confirmation":true,"job":{...},"plans":[...]}`；等待确认是正常结果，必须另调 confirm 才入队。
+
+所有返回的 `char*` 都由调用方使用 `tianyan_string_free()` 释放。操作失败返回 NULL，立即读取 `tianyan_last_error()` 得到包含 kind/message/http_status/code/data 的 JSON，错误字符串同样需要释放。delete 成功返回 `{"deleted":true}`，download 返回 `{"path":"..."}`，list 接收查询 JSON 对象或 NULL。句柄用 `tianyan_fusion_free()` 释放，不能在并发调用中释放或重复释放。
+
+离线 ABI 测试 `tests/test_fusion.c` 已接入 `make test`。接口契约与构建依赖见 [融合迁移说明](fusion-migration.md)。
