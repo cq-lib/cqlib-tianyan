@@ -22,27 +22,15 @@ int main(int argc, char **argv) {
     tianyan_platform_free(platform);
     if (!fusion) return report_error();
 
-    /* Build the JSON with your JSON library in production. This example only
-       accepts a simple filename; escaping arbitrary paths requires a JSON encoder. */
-    char options[4096];
-    if (strpbrk(argv[2], "\\\"\n\r") != NULL) {
-        fprintf(stderr, "unsupported filename characters\n");
-        tianyan_fusion_free(fusion);
-        return 2;
-    }
-    int size = snprintf(options, sizeof(options),
-        "{\"name\":\"demo\",\"package\":\"%s\",\"dispatch_mode\":\"intelligent\"}", argv[2]);
-    if (size < 0 || (size_t)size >= sizeof(options)) {
-        tianyan_fusion_free(fusion);
-        return 2;
-    }
-    char *outcome = tianyan_fusion_submit(fusion, options);
-    if (!outcome) {
+    char *schedule = tianyan_fusion_schedule(fusion, argv[2], "balanced");
+    if (!schedule) {
         tianyan_fusion_free(fusion);
         return report_error();
     }
-    puts(outcome); /* awaiting_confirmation=true means choose a plan and call confirm later. */
-    tianyan_string_free(outcome);
+    puts(schedule); /* Inspect candidates. After user confirmation, call
+        tianyan_fusion_select (or manual), then tianyan_fusion_submit_decision.
+        This example only evaluates; no task is created. */
+    tianyan_string_free(schedule);
     tianyan_fusion_free(fusion);
     return 0;
 }

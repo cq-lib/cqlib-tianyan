@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use super::*;
 use std::{
     io::{Read, Write},
@@ -89,8 +90,7 @@ fn options(path: &Path) -> SubmitOptions {
 
 #[test]
 fn intelligent_submission_never_enqueues_until_confirmed() {
-    let file = tempfile::NamedTempFile::new().unwrap();
-    std::fs::write(file.path(), b"PK-test").unwrap();
+    let file = valid_package();
     let (host, server) = server(vec![
         ok(json!({"package_id":"p"})),
         ok(json!({"task_id":"t"})),
@@ -102,7 +102,7 @@ fn intelligent_submission_never_enqueues_until_confirmed() {
     let requests = server.join().unwrap();
     assert_eq!(requests.len(), 3);
     assert!(requests[0].contains("multipart/form-data"));
-    assert!(requests[0].contains("PK-test"));
+    assert!(requests[0].contains("main.py"));
     assert!(requests[2].starts_with("POST /qccp-quantum/sdk/fusion/task/recommend"));
     assert!(
         !requests
@@ -113,7 +113,7 @@ fn intelligent_submission_never_enqueues_until_confirmed() {
 
 #[test]
 fn auto_confirm_and_manual_use_different_routes() {
-    let file = tempfile::NamedTempFile::new().unwrap();
+    let file = valid_package();
     let (host, server) = server(vec![
         ok(json!({})),
         ok(json!({"id":"t"})),
@@ -122,7 +122,12 @@ fn auto_confirm_and_manual_use_different_routes() {
     ]);
     let mut opt = options(file.path());
     opt.auto_confirm = true;
-    assert!(!client(&host).submit(&opt).unwrap().awaiting_confirmation);
+    assert!(
+        !client(&host)
+            .submit(&opt)
+            .unwrap()
+            .awaiting_confirmation
+    );
     assert!(server.join().unwrap()[3].contains("\"plan_id\":\"plan\""));
     opt.dispatch_mode = "manual".into();
     // Validate resource bindings before uploading anything.
@@ -130,7 +135,12 @@ fn auto_confirm_and_manual_use_different_routes() {
     opt.quantum_resource = Some("q".into());
     opt.hpc_resource = Some("h".into());
     let (host, server) = self::server(vec![ok(json!({})), ok(json!({"id":"t"}))]);
-    assert!(!client(&host).submit(&opt).unwrap().awaiting_confirmation);
+    assert!(
+        !client(&host)
+            .submit(&opt)
+            .unwrap()
+            .awaiting_confirmation
+    );
     assert!(server.join().unwrap()[1].starts_with("POST /qccp-quantum/sdk/fusion/task/run"));
 }
 
@@ -194,7 +204,9 @@ fn shared_session_refreshes_once_without_persisting_when_disabled() {
     let c = FusionClient::from_client(shared.clone());
     c.confirm("t", "plan").unwrap();
     // A second handle observes the token refreshed by the first.
-    FusionClient::from_client(shared).get("other").unwrap();
+    FusionClient::from_client(shared)
+        .get("other")
+        .unwrap();
     let requests = server.join().unwrap();
     assert_eq!(requests.len(), 4);
     assert!(requests[1].contains("openId=test-key"));
@@ -255,7 +267,7 @@ fn input_validation_and_unknown_plan_do_not_confirm() {
     assert!(FusionClient::connect("http://user:pass@example.com", "token", None, 1.0).is_err());
     assert!(FusionClient::connect("https://example.com", "token", None, f64::NAN).is_err());
     assert!(task_path("..", "").is_err());
-    let file = tempfile::NamedTempFile::new().unwrap();
+    let file = valid_package();
     let (host, server) = server(vec![
         ok(json!({})),
         ok(json!({"id":"t"})),
@@ -280,7 +292,7 @@ fn query_is_encoded_and_wait_returns_terminal_failure() {
 
 #[test]
 fn recommendation_failure_retains_saved_task() {
-    let file = tempfile::NamedTempFile::new().unwrap();
+    let file = valid_package();
     let (host, server) = server(vec![
         ok(json!({"package_id":"p"})),
         ok(json!({"task_id":"saved"})),
@@ -290,7 +302,9 @@ fn recommendation_failure_retains_saved_task() {
             json!({"code":503,"data":{"retry_later":true}}).to_string(),
         ),
     ]);
-    let error = client(&host).submit(&options(file.path())).unwrap_err();
+    let error = client(&host)
+        .submit(&options(file.path()))
+        .unwrap_err();
     let data = error.data.unwrap();
     assert_eq!(data["job"]["task_id"], "saved");
     assert_eq!(data["server_data"]["retry_later"], true);
@@ -326,7 +340,7 @@ fn download_business_error_does_not_replace_result() {
 
 #[test]
 fn source_compatible_upload_and_empty_recommendation() {
-    let file = tempfile::NamedTempFile::new().unwrap();
+    let file = valid_package();
     let (host, server) = server(vec![ok(json!("uploaded")), ok(json!({"plans":null}))]);
     let c = client(&host);
     let upload = c.upload_package(file.path()).unwrap();
@@ -340,4 +354,213 @@ fn source_compatible_upload_and_empty_recommendation() {
             .is_empty()
     );
     assert_eq!(server.join().unwrap().len(), 2);
+}
+
+fn member_ok(data: Value) -> (u16, String, String) {
+    (
+        200,
+        String::new(),
+        json!({"code":200,"msg":null,"data":data}).to_string(),
+    )
+}
+fn task_zip(entries: &[(&str, &str)]) -> tempfile::NamedTempFile {
+    let file = tempfile::NamedTempFile::new().unwrap();
+    let mut archive = zip::ZipWriter::new(file.reopen().unwrap());
+    for (name, content) in entries {
+        archive
+            .start_file(
+                *name,
+                zip::write::SimpleFileOptions::default()
+                    .compression_method(zip::CompressionMethod::Deflated),
+            )
+            .unwrap();
+        archive.write_all(content.as_bytes()).unwrap();
+    }
+    archive.finish().unwrap();
+    file
+}
+fn valid_package() -> tempfile::NamedTempFile {
+    task_zip(&[("main.py", "print('demo')"), ("circuit.qcis", "H Q0\nM Q0")])
+}
+fn resources() -> Value {
+    json!({"qpuTotal":1,"cpuTotal":1,
+        "qpu":[{"code":"q","available":true}],"cpu":[{"code":"c","available":true}]})
+}
+fn assessment() -> Value {
+    json!({"recommended_group_id":"rg-1","ranked_candidates":[{
+        "rank":1,"group_id":"rg-1","qpu":{"device_id":"q"},
+        "classic":{"resource_id":"c"},"meets_all_constraints":true
+    }]})
+}
+
+#[test]
+fn v2_default_submit_only_creates_job_after_confirmation() {
+    let file = valid_package();
+    let (host, worker) = server(vec![
+        member_ok(json!({"fileId":"f"})),
+        (200, String::new(), assessment().to_string()),
+        member_ok(resources()),
+    ]);
+    let outcome = client(&host).submit_job(&options(file.path())).unwrap();
+    assert!(outcome.awaiting_confirmation);
+    assert_eq!(outcome.job["fileId"], "f");
+    assert!(outcome.job.get("id").is_none());
+    let requests = worker.join().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(requests[0].starts_with("POST /qccp-hybrid/hybrid/job/v2/upload "));
+    assert!(requests[1].starts_with("POST /qccp-quantum/fusion/strategy/schedule?"));
+    assert!(requests.iter().all(|r| !r.contains("/sdk/fusion")));
+}
+
+#[test]
+fn v2_auto_and_manual_submissions_use_resource_codes() {
+    let file = valid_package();
+    let mut opt = options(file.path());
+    opt.auto_confirm = true;
+    let (host, worker) = server(vec![
+        member_ok(json!({"fileId":"f"})),
+        (200, String::new(), assessment().to_string()),
+        member_ok(resources()),
+        member_ok(json!({"id":"88","status":2})),
+    ]);
+    assert_eq!(client(&host).submit_job(&opt).unwrap().job["id"], "88");
+    let requests = worker.join().unwrap();
+    let body: Value = serde_json::from_str(requests[3].split("\r\n\r\n").nth(1).unwrap()).unwrap();
+    assert_eq!(body["fileId"], "f");
+    assert_eq!(body["qpuResourceCode"], "q");
+    assert_eq!(body["cpuResourceCode"], "c");
+    assert_eq!(body["schedulingMode"], "SMART");
+    assert_eq!(body["schedulingPreference"], "BALANCED");
+    opt.dispatch_mode = "manual".into();
+    assert!(client("http://127.0.0.1:1").submit_job(&opt).is_err());
+    opt.quantum_resource = Some("q".into());
+    opt.hpc_resource = Some("c".into());
+    let (host, worker) = server(vec![
+        member_ok(json!({"fileId":"f"})),
+        member_ok(resources()),
+        member_ok(json!({"id":"89","status":2})),
+    ]);
+    client(&host).submit_job(&opt).unwrap();
+    let requests = worker.join().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(requests[2].contains("\"schedulingMode\":\"MANUAL\""));
+}
+
+#[test]
+fn v2_queries_progress_downloads_and_delete_follow_contract() {
+    let (host, worker) = server(vec![
+        member_ok(json!({"pageNo":2,"pageSize":10,"total":0,"records":[]})),
+        member_ok(json!([{ "presetId":"iterative", "fileId":"public-1" }])),
+        member_ok(json!({"status":8})), member_ok(json!({"status":6})),
+        (200, "Content-Type: application/json\r\nContent-Disposition: attachment; filename=../../result.json\r\n".into(), "{\"code\":0,\"msg\":\"algorithm output\",\"data\":{},\"result\":\"success\"}".into()),
+        (200, "Content-Type: text/plain\r\n".into(), "task completed".into()),
+        member_ok(json!({"id":"88","deleted":true})),
+    ]);
+    let c = client(&host);
+    assert!(c.list_jobs(0, 20, "ALL").is_err());
+    assert!(c.list_jobs(1, 101, "ALL").is_err());
+    assert!(c.list_jobs(1, 20, "invalid").is_err());
+    assert_eq!(c.list_jobs(2, 10, "DRAFT").unwrap()["total"], 0);
+    assert_eq!(c.presets().unwrap()[0]["fileId"], "public-1");
+    assert_eq!(c.wait_job("88", 1.0, 0.001).unwrap()["status"], 6);
+    let directory = tempfile::tempdir().unwrap();
+    let result = c.download_job_result("88", directory.path()).unwrap();
+    assert_eq!(result, directory.path().join("result.json"));
+    assert_eq!(
+        serde_json::from_slice::<Value>(&std::fs::read(result).unwrap()).unwrap()["result"],
+        "success"
+    );
+    let log = c.download_job_log("88", directory.path()).unwrap();
+    assert_eq!(std::fs::read_to_string(log).unwrap(), "task completed");
+    assert_eq!(c.delete_job("88").unwrap()["deleted"], true);
+    let requests = worker.join().unwrap();
+    assert!(
+        requests[0]
+            .starts_with("GET /qccp-hybrid/hybrid/job/v2/tasks?pageNo=2&pageSize=10&view=DRAFT ")
+    );
+    assert!(requests[2].contains("/tasks/88/progress "));
+    assert!(requests[3].contains("/tasks/88/progress "));
+    assert!(requests[6].starts_with("DELETE /qccp-hybrid/hybrid/job/v2/tasks/88 "));
+}
+
+#[test]
+fn v2_failed_or_truncated_download_preserves_existing_file() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("result.json");
+    std::fs::write(&path, "old").unwrap();
+    for (status, body, extra) in [
+        (
+            409,
+            json!({"code":409,"msg":"not ready","data":null}).to_string(),
+            "",
+        ),
+        (200, "short".into(), "Content-Length: 100\r\n"),
+    ] {
+        let (host, worker) = server(vec![(
+            status,
+            format!(
+                "{extra}Content-Type: application/json\r\nContent-Disposition: attachment; filename=result.json\r\n"
+            ),
+            body,
+        )]);
+        assert!(
+            client(&host)
+                .download_job_result("88", directory.path())
+                .is_err()
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "old");
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
+        worker.join().unwrap();
+    }
+}
+
+#[test]
+fn invalid_packages_fail_locally_with_clear_errors() {
+    let c = client("http://127.0.0.1:1");
+    for (entries, message) in [
+        (vec![("sub/main.py", ""), ("a.qcis", "M Q0")], "ZIP root"),
+        (vec![("main.py", "")], "found 0"),
+        (
+            vec![("main.py", ""), ("a.qcis", "M Q0"), ("sub/b.qcis", "M Q0")],
+            "found 2",
+        ),
+        (
+            vec![
+                ("main.py", ""),
+                ("a.qcis", "M Q0"),
+                ("tianyan.env", "OTHER=1"),
+            ],
+            "exactly once",
+        ),
+        (
+            vec![
+                ("main.py", ""),
+                ("a.qcis", "M Q0"),
+                ("tianyan.env", "TIANYAN_APP_SHOTS=1\nTIANYAN_APP_SHOTS=2"),
+            ],
+            "exactly once",
+        ),
+    ] {
+        let file = task_zip(&entries);
+        assert!(
+            c.upload_package(file.path())
+                .unwrap_err()
+                .message
+                .contains(message)
+        );
+    }
+    for shots in ["0", "-1", "1.5", "abc", "2147483648", ""] {
+        let env = format!("TIANYAN_APP_SHOTS={shots}");
+        let file = task_zip(&[("main.py", ""), ("a.qcis", "M Q0"), ("tianyan.env", &env)]);
+        let error = c.schedule_package(file.path(), "balanced").unwrap_err();
+        assert!(error.message.contains("TIANYAN_APP_SHOTS"));
+        assert_eq!(error.kind, "invalid_input");
+    }
+    let file = task_zip(&[
+        ("main.py", ""),
+        ("a.qcis", "M Q0"),
+        ("tianyan.env", "# shots\nTIANYAN_APP_SHOTS = 2048\n"),
+    ]);
+    assert!(super::package::validate(file.path()).is_ok());
+    assert!(super::package::validate(valid_package().path()).is_ok());
 }

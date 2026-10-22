@@ -1,6 +1,7 @@
-//! Fusion cloud API. The member job flow lives in `v2`; the older SDK paths
-//! remain for the existing client until callers move over.
+//! Fusion cloud API. Public submission uses the deployed member v2 contract.
+//! Deprecated SDK endpoints are retained for compatibility; the platform does not deploy them.
 mod decision;
+mod package;
 mod transport;
 mod v2;
 pub use decision::{FusionCandidate, FusionDecision, FusionSchedule};
@@ -50,6 +51,7 @@ impl FusionError {
             message: payload
                 .get("message")
                 .or_else(|| payload.get("msg"))
+                .or_else(|| payload.get("error"))
                 .and_then(Value::as_str)
                 .unwrap_or(fallback)
                 .to_owned(),
@@ -148,6 +150,7 @@ pub struct FusionClient {
     timeout: Duration,
 }
 
+#[allow(deprecated)]
 impl FusionClient {
     pub fn from_client(client: Arc<TianyanClient>) -> Self {
         Self {
@@ -253,10 +256,53 @@ impl FusionClient {
         Ok(payload.get("data").cloned().unwrap_or(payload))
     }
 
+    /// Deprecated SDK compatibility API; use schedule_package for v2 uploads.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use schedule_package")]
     pub fn upload_package(&self, package: &Path) -> Result<Value, FusionError> {
-        if !package.is_file() {
-            return Err(FusionError::invalid("package must be an existing file"));
-        }
+        self.upload_package_legacy(package)
+    }
+
+    /// Deprecated SDK compatibility API; use schedule_package and submit_decision.
+    #[deprecated(
+        note = "platform does not deploy /sdk/fusion; use schedule_package and submit_decision"
+    )]
+    pub fn submit(&self, options: &SubmitOptions) -> Result<SubmitOutcome, FusionError> {
+        self.submit_legacy(options)
+    }
+
+    /// Deprecated SDK compatibility API; use get_job or progress for v2 jobs.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use get_job or progress")]
+    pub fn get(&self, task_id: &str) -> Result<Value, FusionError> {
+        self.get_legacy(task_id)
+    }
+
+    /// Deprecated SDK compatibility API; use delete_job for v2 jobs.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use delete_job")]
+    pub fn delete(&self, task_id: &str) -> Result<(), FusionError> {
+        self.delete_legacy(task_id)
+    }
+
+    /// Deprecated SDK compatibility API; use wait_job for v2 jobs.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use wait_job")]
+    pub fn wait(
+        &self,
+        task_id: &str,
+        timeout_secs: f64,
+        poll_interval: f64,
+    ) -> Result<Value, FusionError> {
+        self.wait_legacy(task_id, timeout_secs, poll_interval)
+    }
+
+    /// Deprecated SDK compatibility API; use download_job_result for v2 jobs.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use download_job_result")]
+    pub fn download_results(&self, task_id: &str, dest: &Path) -> Result<PathBuf, FusionError> {
+        self.download_results_legacy(task_id, dest)
+    }
+
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
+    pub fn upload_package_legacy(&self, package: &Path) -> Result<Value, FusionError> {
+        package::validate(package)?;
         let data = self.json(Method::POST, "/package/upload", &[], Body::Upload(package))?;
         if data.is_object() {
             Ok(data)
@@ -265,9 +311,11 @@ impl FusionClient {
         }
     }
 
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
     pub fn save(&self, options: &SubmitOptions) -> Result<Value, FusionError> {
         validate_options(options)?;
-        let upload = self.upload_package(&options.package)?;
+        let upload = self.upload_package_legacy(&options.package)?;
         let body = json!({"name": options.name, "package_name": package_name(&upload, &options.package),
             "package_id": upload.get("package_id"), "dispatch_mode": options.dispatch_mode,
             "dispatch_preference": options.dispatch_preference,
@@ -280,6 +328,8 @@ impl FusionClient {
         )
     }
 
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
     pub fn recommend(
         &self,
         task_id: &str,
@@ -294,6 +344,8 @@ impl FusionClient {
         rows(data, "plans")
     }
 
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
     pub fn confirm(&self, task_id: &str, plan_id: &str) -> Result<Value, FusionError> {
         nonempty(task_id, "task_id")?;
         nonempty(plan_id, "plan_id")?;
@@ -302,7 +354,9 @@ impl FusionClient {
         normalize_job(data, &json!({"task_id":task_id,"status":"queued"}))
     }
 
-    pub fn submit(&self, options: &SubmitOptions) -> Result<SubmitOutcome, FusionError> {
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
+    pub fn submit_legacy(&self, options: &SubmitOptions) -> Result<SubmitOutcome, FusionError> {
         validate_options(options)?;
         if options.dispatch_mode == "manual" {
             if options
@@ -322,7 +376,7 @@ impl FusionClient {
                     "manual dispatch requires quantum_resource and hpc_resource",
                 ));
             }
-            let upload = self.upload_package(&options.package)?;
+            let upload = self.upload_package_legacy(&options.package)?;
             let body = json!({"name": options.name, "package_name": package_name(&upload, &options.package),
                 "package_id": upload.get("package_id"), "dispatch_mode":"manual",
                 "quantum_resource":options.quantum_resource,"hpc_resource":options.hpc_resource});
@@ -393,19 +447,25 @@ impl FusionClient {
         }
     }
 
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
     pub fn list_tasks(&self, query: &[(String, String)]) -> Result<Vec<Value>, FusionError> {
         rows(
             self.json(Method::GET, "/task/list", query, Body::Empty)?,
             "items",
         )
     }
-    pub fn get(&self, task_id: &str) -> Result<Value, FusionError> {
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
+    pub fn get_legacy(&self, task_id: &str) -> Result<Value, FusionError> {
         let data = self.json(Method::GET, &task_path(task_id, "")?, &[], Body::Empty)?;
         if !data.is_object() {
             return Err(FusionError::invalid("expected a task object"));
         }
         Ok(data)
     }
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
     pub fn events(&self, task_id: &str) -> Result<Vec<Value>, FusionError> {
         rows(
             self.json(
@@ -417,6 +477,8 @@ impl FusionClient {
             "events",
         )
     }
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
     pub fn subtasks(&self, task_id: &str) -> Result<Vec<Value>, FusionError> {
         rows(
             self.json(
@@ -428,11 +490,15 @@ impl FusionClient {
             "items",
         )
     }
-    pub fn delete(&self, task_id: &str) -> Result<(), FusionError> {
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
+    pub fn delete_legacy(&self, task_id: &str) -> Result<(), FusionError> {
         self.json(Method::DELETE, &task_path(task_id, "")?, &[], Body::Empty)?;
         Ok(())
     }
-    pub fn wait(
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
+    pub fn wait_legacy(
         &self,
         task_id: &str,
         timeout_secs: f64,
@@ -451,7 +517,7 @@ impl FusionClient {
             }
             let mut client = self.clone();
             client.timeout = self.timeout.min(remaining);
-            let job = client.get(task_id)?;
+            let job = client.get_legacy(task_id)?;
             if matches!(
                 job.get("status").and_then(Value::as_str),
                 Some("success" | "fail" | "failed" | "cancelled" | "error")
@@ -464,7 +530,13 @@ impl FusionClient {
 
     /// Stream to a unique temporary file in the destination directory; replace
     /// the final file only after the complete response has been received.
-    pub fn download_results(&self, task_id: &str, dest: &Path) -> Result<PathBuf, FusionError> {
+    /// Legacy /sdk/fusion endpoint; not deployed by the platform. Use the v2 job API.
+    #[deprecated(note = "platform does not deploy /sdk/fusion; use the v2 job API")]
+    pub fn download_results_legacy(
+        &self,
+        task_id: &str,
+        dest: &Path,
+    ) -> Result<PathBuf, FusionError> {
         let path = task_path(task_id, "/results")?;
         let mut response = self.client.fusion_request(
             Method::GET,

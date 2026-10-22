@@ -11,6 +11,7 @@ Tests cover:
 Environment Variables:
     TIANYAN_API_KEY: API key for authentication (required for integration tests)
     TIANYAN_DOMAIN: Custom domain (optional, defaults to official endpoint)
+    TIANYAN_SCHEME: URL scheme (optional, default https; use http for test envs)
     PYTEST_RUN_SLOW: Set to any non-empty value to include slow tests (e.g. PYTEST_RUN_SLOW=1)
 
 Usage:
@@ -22,6 +23,9 @@ Usage:
 
     # Run with custom domain
     TIANYAN_API_KEY="your_key" TIANYAN_DOMAIN="my-domain.com" pytest -v
+
+    # Test env that requires http
+    TIANYAN_API_KEY="your_key" TIANYAN_DOMAIN="223.244.15.5:30002" TIANYAN_SCHEME="http" pytest -v
 
     # Include slow tests
     TIANYAN_API_KEY="your_key" PYTEST_RUN_SLOW=1 pytest -v
@@ -68,6 +72,12 @@ def domain() -> str | None:
 
 
 @pytest.fixture
+def scheme() -> str | None:
+    """Get URL scheme from environment variable (e.g. http for test envs)."""
+    return os.environ.get("TIANYAN_SCHEME")
+
+
+@pytest.fixture
 def skip_without_api_key(api_key: str | None) -> None:
     """Skip test if API key is not available."""
     if not api_key:
@@ -75,7 +85,7 @@ def skip_without_api_key(api_key: str | None) -> None:
 
 
 @pytest.fixture
-def platform(api_key: str | None, domain: str | None) -> TianyanPlatform:
+def platform(api_key: str | None, domain: str | None, scheme: str | None) -> TianyanPlatform:
     """Create authenticated platform instance.
 
     Requires TIANYAN_API_KEY environment variable.
@@ -86,6 +96,8 @@ def platform(api_key: str | None, domain: str | None) -> TianyanPlatform:
     kwargs: dict[str, object] = {"api_key": api_key}
     if domain:
         kwargs["domain"] = domain
+    if scheme:
+        kwargs["scheme"] = scheme
 
     return TianyanPlatform.login(**kwargs)
 
@@ -171,6 +183,13 @@ class TestTianyanConfig:
 
         assert config.domain == "custom.example.com"
         assert config.base_url == "https://custom.example.com"
+
+    def test_custom_scheme(self) -> None:
+        """Custom scheme is properly set; default remains https."""
+        assert TianyanConfig().scheme == "https"
+        config = TianyanConfig(domain="223.244.15.5:30002", scheme="http")
+        assert config.scheme == "http"
+        assert config.base_url == "http://223.244.15.5:30002"
 
     def test_disable_save_credentials(self) -> None:
         """Credential persistence can be disabled."""
@@ -320,7 +339,7 @@ class TestTianyanPlatformAuth:
     """Integration tests for platform authentication."""
 
     def test_login_with_valid_key(
-        self, api_key: str | None, domain: str | None
+        self, api_key: str | None, domain: str | None, scheme: str | None
     ) -> None:
         """Login with valid API key succeeds."""
         if not api_key:
@@ -329,16 +348,20 @@ class TestTianyanPlatformAuth:
         kwargs: dict[str, object] = {"api_key": api_key}
         if domain:
             kwargs["domain"] = domain
+        if scheme:
+            kwargs["scheme"] = scheme
 
         platform = TianyanPlatform.login(**kwargs)
         assert platform is not None
         assert "TianyanPlatform" in repr(platform)
 
-    def test_login_with_invalid_key(self, domain: str | None) -> None:
+    def test_login_with_invalid_key(self, domain: str | None, scheme: str | None) -> None:
         """Login with invalid API key raises an error."""
         kwargs: dict[str, object] = {"api_key": "invalid_key_12345"}
         if domain:
             kwargs["domain"] = domain
+        if scheme:
+            kwargs["scheme"] = scheme
 
         # Note: In abi3 mode, TianyanError cannot be caught by type,
         # so we catch any exception and verify it's an error
@@ -346,7 +369,7 @@ class TestTianyanPlatformAuth:
             TianyanPlatform.login(**kwargs)
 
     def test_login_without_save_credentials(
-        self, api_key: str | None, domain: str | None
+        self, api_key: str | None, domain: str | None, scheme: str | None
     ) -> None:
         """Login with save_credentials=False does not persist."""
         if not api_key:
@@ -355,6 +378,8 @@ class TestTianyanPlatformAuth:
         kwargs: dict[str, object] = {"api_key": api_key, "save_credentials": False}
         if domain:
             kwargs["domain"] = domain
+        if scheme:
+            kwargs["scheme"] = scheme
 
         platform = TianyanPlatform.login(**kwargs)
         assert platform is not None

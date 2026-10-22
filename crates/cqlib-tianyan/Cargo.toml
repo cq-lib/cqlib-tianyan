@@ -22,6 +22,7 @@ time.workspace = true
 # Fusion artifact downloads write through NamedTempFile at runtime, not only in tests.
 tempfile = "3"
 percent-encoding = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [lints.clippy]
 # Keep the existing nested conditionals when raising the MSRV for cqlib-core.

@@ -107,6 +107,12 @@ impl TianyanConfig {
         self
     }
 
+    /// Override the URL scheme (default: `"https"`).
+    pub fn with_scheme(mut self, scheme: impl Into<String>) -> Self {
+        self.scheme = scheme.into();
+        self
+    }
+
     /// Compose the full base URL, e.g. `"https://qc.zdxlz.com"`.
     pub fn base_url(&self) -> String {
         format!("{}://{}", self.scheme, self.domain)

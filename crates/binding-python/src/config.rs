@@ -83,6 +83,7 @@ impl PyTianyanConfig {
     ///
     /// # Arguments
     /// * `domain` - Platform hostname (default: `"qc.zdxlz.com"`).
+    /// * `scheme` - URL scheme (default: `"https"`; use `"http"` for some test envs).
     /// * `save_credentials` - Whether to persist credentials to disk (default: `True`).
     /// * `auto_refresh` - Whether to re-login automatically on token expiry (default: `True`).
     /// * `credentials_path` - File path for the JSON credentials file
@@ -90,12 +91,14 @@ impl PyTianyanConfig {
     #[new]
     #[pyo3(signature = (
         domain = None,
+        scheme = None,
         save_credentials = None,
         auto_refresh = None,
         credentials_path = None,
     ))]
     fn new(
         domain: Option<String>,
+        scheme: Option<String>,
         save_credentials: Option<bool>,
         auto_refresh: Option<bool>,
         credentials_path: Option<String>,
@@ -104,6 +107,9 @@ impl PyTianyanConfig {
             Some(d) => TianyanConfig::custom(d),
             None => TianyanConfig::default(),
         };
+        if let Some(s) = scheme {
+            cfg = cfg.with_scheme(s);
+        }
         if let Some(v) = save_credentials {
             cfg = cfg.with_save_credentials(v);
         }
@@ -126,6 +132,12 @@ impl PyTianyanConfig {
     #[getter]
     fn domain(&self) -> String {
         self.inner.domain.clone()
+    }
+
+    /// The URL scheme (`"https"` or `"http"`).
+    #[getter]
+    fn scheme(&self) -> String {
+        self.inner.scheme.clone()
     }
 
     /// Whether credentials are saved to disk after login/refresh.

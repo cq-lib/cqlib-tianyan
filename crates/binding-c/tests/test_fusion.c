@@ -33,6 +33,16 @@ int main(void) {
     expect_error("task_id must not be NULL");
     assert(tianyan_fusion_wait(client, "t", -1, 1) == NULL);
     expect_error("finite and positive");
+    assert(tianyan_fusion_list_jobs(client, 0, 20, "ALL") == NULL);
+    expect_error("pageNo must be positive");
+    assert(tianyan_fusion_list_jobs(client, 1, 101, "ALL") == NULL);
+    expect_error("pageSize");
+    assert(tianyan_fusion_schedule(client, "missing.zip", "balanced") == NULL);
+    expect_error("readable ZIP");
+    assert(tianyan_fusion_submit_decision(client, "demo", "{}") == NULL);
+    expect_error("missing field");
+    assert(tianyan_fusion_progress(NULL, "88") == NULL);
+    expect_error("fusion client must not be NULL");
     tianyan_fusion_free(client);
     tianyan_fusion_free(NULL);
     tianyan_string_free(NULL);

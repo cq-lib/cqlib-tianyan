@@ -55,6 +55,7 @@ use pyo3::prelude::*;
 /// Build a `TianyanConfig` from optional keyword arguments.
 fn build_config(
     domain: Option<String>,
+    scheme: Option<String>,
     save_credentials: Option<bool>,
     auto_refresh: Option<bool>,
     credentials_path: Option<String>,
@@ -63,6 +64,9 @@ fn build_config(
         Some(d) => TianyanConfig::custom(d),
         None => TianyanConfig::default(),
     };
+    if let Some(s) = scheme {
+        cfg = cfg.with_scheme(s);
+    }
     if let Some(v) = save_credentials {
         cfg = cfg.with_save_credentials(v);
     }
@@ -96,6 +100,7 @@ impl PyTianyanPlatform {
     /// # Arguments
     /// * `api_key` - Your Tianyan platform API key (openId).
     /// * `domain` - Platform hostname (default: `"qc.zdxlz.com"`).
+    /// * `scheme` - URL scheme (default: `"https"`; use `"http"` for some test envs).
     /// * `save_credentials` - Persist credentials to disk (default: `True`).
     /// * `auto_refresh` - Re-login automatically on token expiry (default: `True`).
     /// * `credentials_path` - Custom path for the credentials JSON file.
@@ -107,6 +112,7 @@ impl PyTianyanPlatform {
         api_key,
         *,
         domain = None,
+        scheme = None,
         save_credentials = None,
         auto_refresh = None,
         credentials_path = None,
@@ -115,11 +121,12 @@ impl PyTianyanPlatform {
         py: Python<'_>,
         api_key: &str,
         domain: Option<String>,
+        scheme: Option<String>,
         save_credentials: Option<bool>,
         auto_refresh: Option<bool>,
         credentials_path: Option<String>,
     ) -> PyResult<Self> {
-        let cfg = build_config(domain, save_credentials, auto_refresh, credentials_path);
+        let cfg = build_config(domain, scheme, save_credentials, auto_refresh, credentials_path);
         let base_url = cfg.base_url();
         TianyanPlatform::login_with_config(api_key, cfg)
             .map_py_err(py)
@@ -133,6 +140,7 @@ impl PyTianyanPlatform {
     ///
     /// # Arguments
     /// * `domain` - Platform hostname (default: `"qc.zdxlz.com"`).
+    /// * `scheme` - URL scheme (default: `"https"`; use `"http"` for some test envs).
     /// * `save_credentials` - Persist refreshed credentials to disk (default: `True`).
     /// * `auto_refresh` - Re-login automatically on token expiry (default: `True`).
     /// * `credentials_path` - Custom path for the credentials JSON file.
@@ -144,6 +152,7 @@ impl PyTianyanPlatform {
     #[pyo3(signature = (
         *,
         domain = None,
+        scheme = None,
         save_credentials = None,
         auto_refresh = None,
         credentials_path = None,
@@ -151,11 +160,12 @@ impl PyTianyanPlatform {
     fn from_credentials(
         py: Python<'_>,
         domain: Option<String>,
+        scheme: Option<String>,
         save_credentials: Option<bool>,
         auto_refresh: Option<bool>,
         credentials_path: Option<String>,
     ) -> PyResult<Self> {
-        let cfg = build_config(domain, save_credentials, auto_refresh, credentials_path);
+        let cfg = build_config(domain, scheme, save_credentials, auto_refresh, credentials_path);
         let base_url = cfg.base_url();
         TianyanPlatform::from_credentials_with_config(cfg)
             .map_py_err(py)

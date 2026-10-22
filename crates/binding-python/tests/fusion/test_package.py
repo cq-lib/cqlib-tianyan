@@ -34,6 +34,9 @@ def test_build_package(tmp_path):
     build_package(SAMPLE, out)
     assert out.is_file()
     assert out.stat().st_size > 0
+    with zipfile.ZipFile(out) as archive:
+        assert "main.py" in archive.namelist()
+        assert len([name for name in archive.namelist() if name.endswith(".qcis")]) == 1
 
 
 def test_build_package_excludes_output_and_local_secrets(tmp_path):

@@ -243,6 +243,7 @@ void tianyan_fusion_free(struct TianyanFusionC *client);
 
 /*
  Returns uploaded package metadata as JSON; package is a UTF-8 file path.
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
  */
 char *tianyan_fusion_upload(const struct TianyanFusionC *client, const char *package);
 
@@ -250,17 +251,20 @@ char *tianyan_fusion_upload(const struct TianyanFusionC *client, const char *pac
  options_json is a SubmitOptions object: name, package, dispatch_mode,
  dispatch_preference, quantum_resource, hpc_resource, auto_confirm, plan_id.
  Save uploads the package and creates a draft; it never enqueues execution.
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
  */
 char *tianyan_fusion_save(const struct TianyanFusionC *client, const char *options_json);
 
 /*
  Returns {awaiting_confirmation, job, plans}. awaiting_confirmation=true is
  successful draft creation, NOT an error and NOT an enqueued task.
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
  */
 char *tianyan_fusion_submit(const struct TianyanFusionC *client, const char *options_json);
 
 /*
  preference may be NULL (balanced); resource hints may be NULL.
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
  */
 char *tianyan_fusion_recommend(const struct TianyanFusionC *client,
                                const char *task_id,
@@ -270,6 +274,7 @@ char *tianyan_fusion_recommend(const struct TianyanFusionC *client,
 
 /*
  Confirm an existing recommendation and enqueue its task.
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
  */
 char *tianyan_fusion_confirm(const struct TianyanFusionC *client,
                              const char *task_id,
@@ -278,17 +283,33 @@ char *tianyan_fusion_confirm(const struct TianyanFusionC *client,
 /*
  query_json is an object of name/status/dispatch_mode/limit/offset. NULL
  uses the server defaults. Returns a JSON array of task objects.
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
  */
 char *tianyan_fusion_list(const struct TianyanFusionC *client, const char *query_json);
 
+/*
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
+ */
 char *tianyan_fusion_get(const struct TianyanFusionC *client, const char *task_id);
 
+/*
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
+ */
 char *tianyan_fusion_events(const struct TianyanFusionC *client, const char *task_id);
 
+/*
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
+ */
 char *tianyan_fusion_subtasks(const struct TianyanFusionC *client, const char *task_id);
 
+/*
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
+ */
 char *tianyan_fusion_delete(const struct TianyanFusionC *client, const char *task_id);
 
+/*
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
+ */
 char *tianyan_fusion_wait(const struct TianyanFusionC *client,
                           const char *task_id,
                           double timeout_secs,
@@ -297,10 +318,57 @@ char *tianyan_fusion_wait(const struct TianyanFusionC *client,
 /*
  Downloads atomically to dest_dir and returns {"path":"..."}. On any
  failure returns NULL; tianyan_last_error() contains structured error JSON.
+ Deprecated: /sdk/fusion is not deployed by the platform. Use v2 job APIs.
  */
 char *tianyan_fusion_download(const struct TianyanFusionC *client,
                               const char *task_id,
                               const char *dest_dir);
+
+/*
+ Assess a validated ZIP using v2. Returns a serialized FusionSchedule;
+ pass it to select/manual, then submit_decision. No task is created here.
+ */
+char *tianyan_fusion_schedule(const struct TianyanFusionC *client,
+                              const char *package,
+                              const char *strategy);
+
+/*
+ schedule_json is the complete current schedule; rank selects a candidate.
+ */
+char *tianyan_fusion_select(const struct TianyanFusionC *client,
+                            const char *schedule_json,
+                            int64_t rank);
+
+/*
+ Resolve explicitly selected QPU/CPU resource codes against this schedule.
+ */
+char *tianyan_fusion_manual(const struct TianyanFusionC *client,
+                            const char *schedule_json,
+                            const char *qpu,
+                            const char *cpu);
+
+/*
+ Submit the selected v2 FusionDecision JSON. Returns the parent task receipt.
+ */
+char *tianyan_fusion_submit_decision(const struct TianyanFusionC *client,
+                                     const char *name,
+                                     const char *decision_json);
+
+/*
+ Paginated v2 jobs: pageNo >= 1, pageSize 1..100, view ALL or DRAFT (NULL=ALL).
+ */
+char *tianyan_fusion_list_jobs(const struct TianyanFusionC *client,
+                               uint32_t page_no,
+                               uint32_t page_size,
+                               const char *view);
+
+char *tianyan_fusion_presets(const struct TianyanFusionC *client);
+
+char *tianyan_fusion_progress(const struct TianyanFusionC *client, const char *task_id);
+
+char *tianyan_fusion_download_log(const struct TianyanFusionC *client,
+                                  const char *task_id,
+                                  const char *dest_dir);
 
 /*
  Authenticate with the Tianyan platform using an API key.

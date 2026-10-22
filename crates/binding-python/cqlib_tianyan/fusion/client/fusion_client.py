@@ -65,9 +65,57 @@ class FusionClient:
             return _native_call(self._native.access_token)
         return _native_call(self._native.login, key)
 
+    def schedule_package(self, package: Path | str, strategy: str = "balanced"):
+        """Upload and assess a ZIP without creating a job; select or manually bind resources."""
+        return _native_call(self._client().schedule_package, str(package), strategy)
+
+    def submit_decision(self, name: str, decision):
+        """Submit a confirmed v2 decision; returns the native job handle."""
+        return _native_call(self._client().submit_decision, name, decision)
+
+    def list_jobs(self, *, page_no: int = 1, page_size: int = 20, view: str = "ALL") -> dict[str, Any]:
+        return self._json("list_jobs", page_no, page_size, view)
+
+    def presets(self) -> list[dict[str, Any]]:
+        return self._json("presets")
+
+    def progress(self, task_id: str) -> dict[str, Any]:
+        return self._json("progress", str(task_id))
+
+    def delete_job(self, task_id: str) -> dict[str, Any]:
+        return self._json("delete_job", str(task_id))
+
+    def download_job_log(self, task_id: str, dest_dir: Path | str) -> Path:
+        return Path(_native_call(self._client().download_job_log, str(task_id), str(dest_dir)))
+
+    def upload_job_package(self, package: Path | str) -> dict[str, Any]:
+        return self._json("upload_job_package", str(package))
+
+    def get_job(self, task_id: str) -> FusionJob:
+        return FusionJob.from_api(self._json("get_job", str(task_id)))
+
+    def wait_job(self, task_id: str, *, poll_interval: float = 5.0, timeout: float = 3600.0) -> FusionJob:
+        return FusionJob.from_api(self._json("wait_job", str(task_id), timeout, poll_interval))
+
+    def download_job_result(self, task_id: str, dest_dir: Path | str) -> Path:
+        return Path(_native_call(self._client().download_job_result, str(task_id), str(dest_dir)))
+
+    def submit_job(self, *, name: str, package: Path | str, dispatch_mode: DispatchMode = "intelligent",
+                   dispatch_preference: DispatchPreference = "balanced", quantum_resource: str | None = None,
+                   hpc_resource: str | None = None, auto_confirm: bool = False, plan_id: str | None = None) -> FusionJob:
+        options = dict(name=name, package=str(package), dispatch_mode=dispatch_mode,
+                       dispatch_preference=dispatch_preference, quantum_resource=quantum_resource,
+                       hpc_resource=hpc_resource, auto_confirm=auto_confirm, plan_id=plan_id)
+        outcome = self._json("submit_job", json.dumps(options))
+        job = FusionJob.from_api(outcome["job"])
+        if outcome["awaiting_confirmation"]:
+            raise ConfirmationRequired(job, [ResourcePlan.from_api(p, rank=i) for i, p in enumerate(outcome["plans"], 1)])
+        return job
+
     def upload_package(self, package: Path | str) -> dict[str, Any]:
         return self._json("upload_package", str(package))
 
+    # Deprecated /sdk/fusion APIs are retained for compatibility, but are not deployed.
     def save(self, *, name: str, package: Path | str, dispatch_mode: DispatchMode = "intelligent",
              dispatch_preference: DispatchPreference = "balanced", quantum_resource: str | None = None,
              hpc_resource: str | None = None) -> FusionJob:

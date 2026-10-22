@@ -103,13 +103,8 @@ pub fn select_manual(
 pub fn wait_signal(status: i64) -> Result<WaitSignal, FusionError> {
     match status {
         5 | 6 | 7 => Ok(WaitSignal::Ready),
-        1 | 2 | 4 | 8 => Ok(WaitSignal::Continue),
-        3 => Err(FusionError::invalid(
-            "fusion tasks have no paused state, but the server returned status 3",
-        )),
-        9 => Err(FusionError::invalid(
-            "fusion task status is unknown",
-        )),
+        1 | 2 | 3 | 4 | 8 => Ok(WaitSignal::Continue),
+        9 => Err(FusionError::invalid("fusion task status is unknown")),
         other => Err(FusionError::invalid(format!(
             "unexpected fusion task status {other}"
         ))),
@@ -197,8 +192,16 @@ mod tests {
 
     #[test]
     fn keeps_only_three_lowest_ranks() {
-        let visible = top_candidates(vec![candidate(4, true), candidate(1, true), candidate(3, true), candidate(2, true)]);
-        assert_eq!(visible.iter().map(|item| item.rank).collect::<Vec<_>>(), vec![1, 2, 3]);
+        let visible = top_candidates(vec![
+            candidate(4, true),
+            candidate(1, true),
+            candidate(3, true),
+            candidate(2, true),
+        ]);
+        assert_eq!(
+            visible.iter().map(|item| item.rank).collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
     }
 
     #[test]
@@ -208,7 +211,12 @@ mod tests {
             candidates: vec![candidate(1, false)],
             choices: choices(),
         };
-        assert!(select_rank(&schedule, 1).unwrap_err().message.contains("constraints"));
+        assert!(
+            select_rank(&schedule, 1)
+                .unwrap_err()
+                .message
+                .contains("constraints")
+        );
         assert!(select_rank(&schedule, 2).is_err());
     }
 
@@ -233,10 +241,10 @@ mod tests {
     }
 
     #[test]
-    fn paused_and_unknown_status_are_errors() {
+    fn paused_status_continues_waiting_and_unknown_status_is_error() {
         assert_eq!(wait_signal(6).unwrap(), WaitSignal::Ready);
         assert_eq!(wait_signal(8).unwrap(), WaitSignal::Continue);
-        assert!(wait_signal(3).is_err());
+        assert_eq!(wait_signal(3).unwrap(), WaitSignal::Continue);
         assert!(wait_signal(9).is_err());
     }
 }

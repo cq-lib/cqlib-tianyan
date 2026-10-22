@@ -35,7 +35,7 @@ impl PyFusionClient {
     ) -> PyResult<Self> {
         py.detach(|| FusionClient::connect(host, token, api_key, timeout))
             .map(|inner| Self { inner })
-            .map_err(error)
+            .map_err(py_error)
     }
 
     #[staticmethod]
@@ -49,15 +49,15 @@ impl PyFusionClient {
             .fusion()
             .with_timeout(timeout)
             .map(|inner| Self { inner })
-            .map_err(error)
+            .map_err(py_error)
     }
 
     fn access_token(&self) -> PyResult<String> {
-        self.inner.access_token().map_err(error)
+        self.inner.access_token().map_err(py_error)
     }
 
     fn login(&self, py: Python<'_>, api_key: &str) -> PyResult<String> {
-        py.detach(|| self.inner.login(api_key))            .map_err(py_error)
+        py.detach(|| self.inner.login(api_key)).map_err(py_error)
     }
 
     #[pyo3(signature = (package, strategy="balanced"))]
@@ -93,14 +93,89 @@ impl PyFusionClient {
         })
     }
 
+    #[pyo3(signature = (page_no=1, page_size=20, view="ALL"))]
+    fn list_jobs(
+        &self,
+        py: Python<'_>,
+        page_no: u32,
+        page_size: u32,
+        view: &str,
+    ) -> PyResult<String> {
+        json(py.detach(|| self.inner.list_jobs(page_no, page_size, view)))
+    }
+    fn presets(&self, py: Python<'_>) -> PyResult<String> {
+        json(py.detach(|| self.inner.presets()))
+    }
+    fn progress(&self, py: Python<'_>, task_id: &str) -> PyResult<String> {
+        json(py.detach(|| self.inner.progress(task_id)))
+    }
+    fn delete_job(&self, py: Python<'_>, task_id: &str) -> PyResult<String> {
+        json(py.detach(|| self.inner.delete_job(task_id)))
+    }
+    fn download_job_log(&self, py: Python<'_>, task_id: &str, dest: &str) -> PyResult<String> {
+        py.detach(|| self.inner.download_job_log(task_id, Path::new(dest)))
+            .map(|path| path.to_string_lossy().into_owned())
+            .map_err(py_error)
+    }
+
+    fn upload_job_package(&self, py: Python<'_>, package: &str) -> PyResult<String> {
+        json(py.detach(|| self.inner.upload_job_package(Path::new(package))))
+    }
+    fn submit_job(&self, py: Python<'_>, options_json: &str) -> PyResult<String> {
+        let options = options(options_json)?;
+        json(py.detach(|| self.inner.submit_job(&options)))
+    }
+    fn get_job(&self, py: Python<'_>, task_id: &str) -> PyResult<String> {
+        json(py.detach(|| self.inner.get_job(task_id)))
+    }
+    #[pyo3(signature = (task_id, timeout=3600.0, poll_interval=5.0))]
+    fn wait_job(
+        &self,
+        py: Python<'_>,
+        task_id: &str,
+        timeout: f64,
+        poll_interval: f64,
+    ) -> PyResult<String> {
+        json(py.detach(|| self.inner.wait_job(task_id, timeout, poll_interval)))
+    }
+    fn download_job_result(&self, py: Python<'_>, task_id: &str, dest: &str) -> PyResult<String> {
+        py.detach(|| self.inner.download_job_result(task_id, Path::new(dest)))
+            .map(|path| path.to_string_lossy().into_owned())
+            .map_err(py_error)
+    }
+
     fn upload_package(&self, py: Python<'_>, package: &str) -> PyResult<String> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         json(py.detach(|| self.inner.upload_package(Path::new(package))))
     }
     fn save(&self, py: Python<'_>, options_json: &str) -> PyResult<String> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         let options = options(options_json)?;
         json(py.detach(|| self.inner.save(&options)))
     }
     fn submit(&self, py: Python<'_>, options_json: &str) -> PyResult<String> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         let options = options(options_json)?;
         json(py.detach(|| self.inner.submit(&options)))
     }
@@ -113,29 +188,85 @@ impl PyFusionClient {
         quantum_hint: Option<&str>,
         hpc_hint: Option<&str>,
     ) -> PyResult<String> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         json(py.detach(|| {
             self.inner
                 .recommend(task_id, preference, quantum_hint, hpc_hint)
         }))
     }
     fn confirm(&self, py: Python<'_>, task_id: &str, plan_id: &str) -> PyResult<String> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         json(py.detach(|| self.inner.confirm(task_id, plan_id)))
     }
     fn list_tasks(&self, py: Python<'_>, query_json: &str) -> PyResult<String> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         let query: Vec<(String, String)> =
             serde_json::from_str(query_json).map_err(|e| py_error(e.into()))?;
         json(py.detach(|| self.inner.list_tasks(&query)))
     }
     fn get(&self, py: Python<'_>, task_id: &str) -> PyResult<String> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         json(py.detach(|| self.inner.get(task_id)))
     }
     fn events(&self, py: Python<'_>, task_id: &str) -> PyResult<String> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         json(py.detach(|| self.inner.events(task_id)))
     }
     fn subtasks(&self, py: Python<'_>, task_id: &str) -> PyResult<String> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         json(py.detach(|| self.inner.subtasks(task_id)))
     }
     fn delete(&self, py: Python<'_>, task_id: &str) -> PyResult<()> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         py.detach(|| self.inner.delete(task_id)).map_err(py_error)
     }
     #[pyo3(signature = (task_id, timeout=3600.0, poll_interval=5.0))]
@@ -146,9 +277,25 @@ impl PyFusionClient {
         timeout: f64,
         poll_interval: f64,
     ) -> PyResult<String> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         json(py.detach(|| self.inner.wait(task_id, timeout, poll_interval)))
     }
     fn download_results(&self, py: Python<'_>, task_id: &str, dest: &str) -> PyResult<String> {
+        py.import("warnings")?.call_method1(
+            "warn",
+            (
+                "Legacy /sdk/fusion API is not deployed by the platform; use the v2 job API",
+                py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                2,
+            ),
+        )?;
         py.detach(|| self.inner.download_results(task_id, Path::new(dest)))
             .map(|path| path.to_string_lossy().into_owned())
             .map_err(py_error)
@@ -210,8 +357,11 @@ impl PyFusionJob {
     }
 
     fn download(&self, py: Python<'_>, dest: &str) -> PyResult<String> {
-        py.detach(|| self.client.download_job_result(&self.task_id, Path::new(dest)))
-            .map(|path| path.to_string_lossy().into_owned())
-            .map_err(py_error)
+        py.detach(|| {
+            self.client
+                .download_job_result(&self.task_id, Path::new(dest))
+        })
+        .map(|path| path.to_string_lossy().into_owned())
+        .map_err(py_error)
     }
 }

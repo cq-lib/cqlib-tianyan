@@ -281,79 +281,58 @@ def _prompt_plan(plans: list[ResourcePlan]) -> ResourcePlan | None:
 def _cmd_submit(args: argparse.Namespace) -> int:
     client = _make_client(args)
     package = _prepare_package(args.path.resolve(), args.output)
-    try:
-        job = client.submit(
-            name=args.name,
-            package=package,
-            dispatch_mode=args.dispatch,
-            dispatch_preference=args.preference,
-            quantum_resource=args.quantum_resource,
-            hpc_resource=args.hpc_resource,
-            auto_confirm=args.auto_confirm,
-            plan_id=args.plan,
-        )
-    except ConfirmationRequired as exc:
-        _print_json(
-            {
-                "task_id": exc.job.id,
-                "status": "awaiting_confirm",
-                "plans": _plans_payload(exc.plans),
-            }
-        )
-        if not sys.stdin.isatty():
-            print(
-                f"draft saved; confirm with: cqfusion confirm {exc.job.id} PLAN_ID",
-                file=sys.stderr,
-            )
+    schedule = client.schedule_package(package, args.preference)
+    candidates = schedule.candidates()
+    _print_json(candidates)
+    if args.dispatch == "manual":
+        if not args.quantum_resource or not args.hpc_resource:
+            raise CqfusionRequestError("manual dispatch requires both resource codes")
+        decision = schedule.manual(args.quantum_resource, args.hpc_resource)
+    else:
+        selected = next((c for c in candidates if c["group_id"] == args.plan), None) if args.plan else None
+        if args.auto_confirm and not args.plan:
+            selected = next((c for c in candidates if c["selectable"]), None)
+        if selected is None and not args.plan and not args.auto_confirm and sys.stdin.isatty():
+            answer = input("Select a recommendation rank (empty to cancel): ").strip()
+            selected = next((c for c in candidates if str(c["rank"]) == answer), None)
+        if selected is None:
+            print("No job created; select a current recommendation with --plan or --auto-confirm, or use manual resource codes", file=sys.stderr)
             return 2
-        chosen = _prompt_plan(exc.plans)
-        if chosen is None:
-            print(f"draft {exc.job.id} left awaiting confirmation", file=sys.stderr)
-            return 2
-        job = client.confirm(exc.job.id, chosen.id)
-    _print_json(job.__dict__)
+        decision = schedule.select(selected["rank"])
+    handle = client.submit_decision(args.name, decision)
+    _print_json(json.loads(handle.status()))
     if args.wait:
-        job = client.wait(job.id, timeout=args.timeout)
-        _print_json(job.__dict__)
+        _print_json(json.loads(handle.wait(timeout=args.timeout)))
     return 0
 
 
 def _cmd_recommend(args: argparse.Namespace) -> int:
-    client = _make_client(args)
-    plans = client.recommend(args.task_id, preference=args.preference)
-    _print_json(_plans_payload(plans))
-    return 0
+    print(
+        "cqfusion recommend is deprecated: /sdk/fusion is not deployed; use cqfusion submit with the v2 job API",
+        file=sys.stderr,
+    )
+    return 2
 
 
 def _cmd_confirm(args: argparse.Namespace) -> int:
-    client = _make_client(args)
-    job = client.confirm(args.task_id, args.plan_id)
-    _print_json(job.__dict__)
-    if args.wait:
-        job = client.wait(job.id, timeout=args.timeout)
-        _print_json(job.__dict__)
-    return 0
+    print(
+        "cqfusion confirm is deprecated: /sdk/fusion is not deployed; use cqfusion submit with the v2 job API",
+        file=sys.stderr,
+    )
+    return 2
 
 
 def _cmd_save(args: argparse.Namespace) -> int:
-    client = _make_client(args)
-    package = _prepare_package(args.path.resolve(), args.output)
-    job = client.save(
-        name=args.name,
-        package=package,
-        dispatch_mode=args.dispatch,
-        dispatch_preference=args.preference,
-        quantum_resource=args.quantum_resource,
-        hpc_resource=args.hpc_resource,
+    print(
+        "cqfusion save is deprecated: /sdk/fusion is not deployed; use cqfusion submit with the v2 job API",
+        file=sys.stderr,
     )
-    _print_json(job.__dict__)
-    return 0
+    return 2
 
 
 def _cmd_status(args: argparse.Namespace) -> int:
     client = _make_client(args)
-    job = client.get(args.task_id)
-    _print_json(job.__dict__)
+    _print_json(client.progress(args.task_id))
     if args.events:
         _print_json(client.events(args.task_id))
     if args.subtasks:
@@ -363,7 +342,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
 
 def _cmd_download(args: argparse.Namespace) -> int:
     client = _make_client(args)
-    files = client.download_results(args.task_id, args.dest)
+    files = [client.download_job_result(args.task_id, args.dest)]
     _print_json([str(path) for path in files])
     return 0
 
@@ -422,7 +401,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_cloud_args(submit)
     submit.set_defaults(func=_cmd_submit)
 
-    save = sub.add_parser("save", help="save fusion task draft to cloud")
+    save = sub.add_parser("save", help="deprecated SDK save (not deployed)")
     save.add_argument("path", type=Path)
     save.add_argument("--name", required=True)
     save.add_argument("-o", "--output", type=Path)
@@ -430,7 +409,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_cloud_args(save)
     save.set_defaults(func=_cmd_save)
 
-    recommend = sub.add_parser("recommend", help="list recommended resource plans for a draft")
+    recommend = sub.add_parser("recommend", help="deprecated SDK recommend (not deployed)")
     recommend.add_argument("task_id")
     recommend.add_argument(
         "--preference",
@@ -440,7 +419,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_cloud_args(recommend)
     recommend.set_defaults(func=_cmd_recommend)
 
-    confirm = sub.add_parser("confirm", help="bind a recommended plan and enqueue the task")
+    confirm = sub.add_parser("confirm", help="deprecated SDK confirm (not deployed)")
     confirm.add_argument("task_id")
     confirm.add_argument("plan_id")
     confirm.add_argument("--wait", action="store_true")
