@@ -9,6 +9,7 @@
 // Any modifications or derivative works of this code must retain this
 // copyright notice, and modified files need to carry a notice indicating
 // that they have been altered from the originals.
+// Modified to export filtered device query types.
 
 //! # cqlib-tianyan
 //!
@@ -62,7 +63,10 @@ pub mod task;
 
 // Re-export the most commonly used public types at the crate root.
 pub use config::TianyanConfig;
-pub use device::{CircuitInput, DeviceStatus, DeviceToll, DeviceType, TianyanBackend};
+pub use device::{
+    BackendQueryDetails, CircuitInput, DeviceQuery, DeviceStatus, DeviceToll, DeviceType, GateInfo,
+    TianyanBackend,
+};
 pub use error::TianyanError;
 pub use platform::TianyanPlatform;
 pub use task::{CalibrationMode, TaskHandle};

@@ -11,6 +11,7 @@
 // that they have been altered from the originals.
 // Modified to cover the upgrading backend status.
 // Modified to verify filtering and classification of backend API records.
+// Modified to verify filtered device queries and base-gate data.
 
 use super::*;
 
@@ -131,4 +132,137 @@ fn circuit_input_multiline_qcis() {
 fn circuit_input_empty_string() {
     let input: CircuitInput = "".into();
     assert_eq!(input.into_qcis().unwrap(), "");
+}
+
+#[test]
+fn query_backends_sends_filters_and_preserves_gate_data() {
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpListener;
+    use std::thread;
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let worker = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        stream.set_nonblocking(false).unwrap();
+        let mut reader = BufReader::new(stream.try_clone().unwrap());
+        let mut first_line = String::new();
+        reader.read_line(&mut first_line).unwrap();
+        loop {
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            if line == "\r\n" || line.is_empty() {
+                break;
+            }
+        }
+
+        let response = serde_json::json!({
+            "code": 200,
+            "msg": "操作成功",
+            "data": [
+                {
+                    "id": "1001", "code": "tianyan176", "name": "祖冲之号",
+                    "nameEn": "TianYan-176", "status": 0, "isToll": 1,
+                    "bitWidth": 176, "qubitNum": 176, "maxShots": 100000,
+                    "maxCircuitLayer": 50, "labels": "1",
+                    "baseGate": [{"id": "10001", "qcis": "H", "rule": "H Q", "bitWidth": 1, "type": 0}],
+                    "derivativeGate": []
+                },
+                {
+                    "id": "1002", "code": "QPU-01", "name": "示例设备",
+                    "status": 5, "isToll": 2, "baseGate": []
+                }
+            ]
+        })
+        .to_string();
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            response.len(),
+            response
+        )
+        .unwrap();
+        first_line
+    });
+
+    let config = crate::TianyanConfig {
+        scheme: "http".into(),
+        domain: address.to_string(),
+        save_credentials: false,
+        auto_refresh: false,
+        ..crate::TianyanConfig::default()
+    };
+    let client = Arc::new(
+        TianyanClient::new(
+            config,
+            crate::auth::Credentials {
+                api_key: "unused".into(),
+                access_token: "test-token".into(),
+                token_obtained_at: time::OffsetDateTime::now_utc().unix_timestamp(),
+            },
+        )
+        .unwrap(),
+    );
+    let query = DeviceQuery::default()
+        .with_name("祖冲之")
+        .with_name_en("TianYan")
+        .with_labels("1")
+        .with_toll(1)
+        .with_computer_ids(vec![1001, 1002]);
+    let backends = query_backends(client, &query).unwrap();
+    let first_line = worker.join().unwrap();
+    let target = first_line.split_whitespace().nth(1).unwrap();
+    let url = reqwest::Url::parse(&format!("http://localhost{target}")).unwrap();
+    assert_eq!(url.path(), DEVICE_QUERY_PATH);
+    let pairs: Vec<_> = url
+        .query_pairs()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+    assert_eq!(
+        pairs,
+        vec![
+            ("name".into(), "祖冲之".into()),
+            ("nameEn".into(), "TianYan".into()),
+            ("labels".into(), "1".into()),
+            ("isToll".into(), "1".into()),
+            ("computerIds".into(), "1001".into()),
+            ("computerIds".into(), "1002".into()),
+        ]
+    );
+
+    assert_eq!(backends.len(), 2);
+    assert_eq!(backends[0].name, "tianyan176");
+    assert_eq!(backends[0].query_details().unwrap().id, "1001");
+    assert_eq!(backends[0].query_details().unwrap().max_shots, Some(100000));
+    assert_eq!(
+        backends[0].query_details().unwrap().field("qubitNum"),
+        Some(&serde_json::json!(176))
+    );
+    assert_eq!(
+        backends[0].base_gates().unwrap()[0].qcis.as_deref(),
+        Some("H")
+    );
+    assert_eq!(backends[1].name, "QPU-01");
+    assert_eq!(backends[1].device_type, DeviceType::Unknown);
+    assert_eq!(backends[1].status, DeviceStatus::ResearchOccupied);
+    assert!(matches!(
+        backends[1].run(vec!["H Q0".into()], 1),
+        Err(TianyanError::InvalidInput(_))
+    ));
+}
+
+#[test]
+fn invalid_toll_filter_is_rejected_before_request() {
+    assert!(
+        DeviceQuery::default()
+            .with_toll(0)
+            .query_pairs()
+            .unwrap()
+            .is_empty()
+    );
+    let query = DeviceQuery::default().with_toll(3);
+    assert!(matches!(
+        query.query_pairs(),
+        Err(TianyanError::InvalidInput(_))
+    ));
 }

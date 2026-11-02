@@ -9,6 +9,7 @@
 // Any modifications or derivative works of this code must retain this
 // copyright notice, and modified files need to carry a notice indicating
 // that they have been altered from the originals.
+// Modified to support filtered device queries and endpoint-specific response codes.
 
 //! Authenticated HTTP client for the Tianyan quantum cloud platform.
 //!
@@ -45,7 +46,12 @@ pub struct ApiResponse<T> {
 impl<T> ApiResponse<T> {
     /// Unwrap the `data` field, converting a non-zero `code` into a [`TianyanError::Api`].
     pub fn into_data(self) -> Result<T, TianyanError> {
-        if self.code != 0 {
+        self.into_data_with_success_code(0)
+    }
+
+    /// Unwrap `data` for an endpoint with a different success code.
+    pub fn into_data_with_success_code(self, success_code: i64) -> Result<T, TianyanError> {
+        if self.code != success_code {
             return Err(TianyanError::Api {
                 code: self.code,
                 message: self
@@ -245,6 +251,25 @@ impl TianyanClient {
     pub fn get<T: DeserializeOwned>(&self, path: &str) -> Result<ApiResponse<T>, TianyanError> {
         let url = format!("{}{}", self.config.base_url(), path);
         self.send_with_retry::<ApiResponse<T>>("GET", &url, None)
+    }
+
+    /// Authenticated GET request with URL-encoded query pairs. Repeated keys are preserved.
+    pub fn get_with_query<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(String, String)],
+    ) -> Result<ApiResponse<T>, TianyanError> {
+        let url = format!("{}{}", self.config.base_url(), path);
+        let mut url = reqwest::Url::parse(&url)
+            .map_err(|e| TianyanError::InvalidInput(format!("invalid request URL: {e}")))?;
+        if !query.is_empty() {
+            url.query_pairs_mut().extend_pairs(
+                query
+                    .iter()
+                    .map(|(key, value)| (key.as_str(), value.as_str())),
+            );
+        }
+        self.send_with_retry::<ApiResponse<T>>("GET", url.as_str(), None)
     }
 
     /// Authenticated POST request with a JSON body; deserialises into `ApiResponse<T>`.

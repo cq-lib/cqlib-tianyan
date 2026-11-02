@@ -9,6 +9,7 @@
 // Any modifications or derivative works of this code must retain this
 // copyright notice, and modified files need to carry a notice indicating
 // that they have been altered from the originals.
+// Modified to expose filtered quantum computer queries.
 
 //! Top-level entry point for the Tianyan quantum cloud platform client.
 //!
@@ -57,7 +58,7 @@
 use crate::auth::{self, save_credentials};
 use crate::client::TianyanClient;
 use crate::config::TianyanConfig;
-use crate::device::{self, CircuitInput, TianyanBackend};
+use crate::device::{self, CircuitInput, DeviceQuery, TianyanBackend};
 use crate::error::TianyanError;
 use crate::task::{CalibrationMode, TaskHandle};
 use std::sync::Arc;
@@ -144,6 +145,28 @@ impl TianyanPlatform {
     /// Fetch the full list of quantum backends from the platform.
     pub fn list_backends(&self) -> Result<Vec<TianyanBackend>, TianyanError> {
         device::list_backends(self.client.clone())
+    }
+
+    /// Query quantum computers using the filters supported by the user-facing endpoint.
+    /// Unlike `list_backends`, this includes records with non-`tianyan` machine codes.
+    ///
+    /// ```rust,no_run
+    /// use cqlib_tianyan::{DeviceQuery, TianyanPlatform};
+    ///
+    /// let platform = TianyanPlatform::from_credentials()?;
+    /// let query = DeviceQuery::default().with_computer_ids(vec![1001, 1002]);
+    /// for backend in platform.query_backends(&query)? {
+    ///     println!("{}: {}", backend.name, backend.display_name);
+    ///     if let Some(gates) = backend.base_gates() {
+    ///         for gate in gates {
+    ///             println!("base gate: {:?}", gate.qcis);
+    ///         }
+    ///     }
+    /// }
+    /// # Ok::<(), cqlib_tianyan::TianyanError>(())
+    /// ```
+    pub fn query_backends(&self, query: &DeviceQuery) -> Result<Vec<TianyanBackend>, TianyanError> {
+        device::query_backends(self.client.clone(), query)
     }
 
     /// Return the backend with the given `name` (case-sensitive `computerCode`).

@@ -9,6 +9,7 @@
 // Any modifications or derivative works of this code must retain this
 // copyright notice, and modified files need to carry a notice indicating
 // that they have been altered from the originals.
+// Modified to add the filterable quantum computer query endpoint.
 
 //! Configuration for the Tianyan quantum cloud platform.
 //!
@@ -23,6 +24,9 @@ pub const LOGIN_PATH: &str = "/qccp-auth/oauth2/sdk/opnId";
 
 /// Device (quantum computer) list endpoint.
 pub const DEVICE_LIST_PATH: &str = "/qccp-quantum/sdk/quantumComputer/list";
+
+/// Filterable quantum computer query endpoint.
+pub const DEVICE_QUERY_PATH: &str = "/qccp-quantum/experiments/quantum/computer/by/user";
 
 /// Batch circuit submission endpoint (max 50 circuits per call).
 pub const SUBMIT_PATH: &str = "/qccp-quantum/sdk/experiment/submit";

@@ -5,6 +5,7 @@
 // This code is licensed under the Apache License, Version 2.0. You may
 // obtain a copy of this license in the LICENSE.txt file in the root directory
 // of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+// Modified to represent research-occupied and unclassified queried devices.
 
 //! C API for [`TianyanBackend`] and the list returned by `tianyan_platform_list_backends()`.
 //!
@@ -69,6 +70,7 @@ pub extern "C" fn tianyan_backend_display_name(backend: *const TianyanBackendC) 
 /// | 1    | Photonic        |
 /// | 2    | IonTrap         |
 /// | 3    | Simulator       |
+/// | 4    | Unknown         |
 /// | -1   | NULL backend    |
 #[unsafe(no_mangle)]
 pub extern "C" fn tianyan_backend_device_type(backend: *const TianyanBackendC) -> c_int {
@@ -81,6 +83,7 @@ pub extern "C" fn tianyan_backend_device_type(backend: *const TianyanBackendC) -
         DeviceType::Photonic => 1,
         DeviceType::IonTrap => 2,
         DeviceType::Simulator => 3,
+        DeviceType::Unknown => 4,
     }
 }
 
@@ -93,6 +96,7 @@ pub extern "C" fn tianyan_backend_device_type(backend: *const TianyanBackendC) -
 /// | 2    | UnderMaintenance    |
 /// | 3    | OffLine             |
 /// | 4    | Upgrading           |
+/// | 5    | ResearchOccupied    |
 /// | -1   | Unknown             |
 #[unsafe(no_mangle)]
 pub extern "C" fn tianyan_backend_status(backend: *const TianyanBackendC) -> c_int {
@@ -106,6 +110,7 @@ pub extern "C" fn tianyan_backend_status(backend: *const TianyanBackendC) -> c_i
         DeviceStatus::UnderMaintenance => 2,
         DeviceStatus::OffLine => 3,
         DeviceStatus::Upgrading => 4,
+        DeviceStatus::ResearchOccupied => 5,
         DeviceStatus::Unknown(_) => -1,
     }
 }

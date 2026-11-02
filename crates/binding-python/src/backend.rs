@@ -11,6 +11,7 @@
 // that they have been altered from the originals.
 // Modified to expose the upgrading backend status.
 // Modified to configure calibration through run and deprecate submission aliases.
+// Modified to represent research-occupied and unclassified queried devices.
 
 //! Python bindings for [`TianyanBackend`], [`DeviceStatus`], [`DeviceToll`],
 //! and [`CalibrationMode`].
@@ -76,6 +77,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for CalibrationModeInput {
 /// - `"under_maintenance"` — Temporarily unavailable for maintenance.
 /// - `"offline"` — Device is offline.
 /// - `"upgrading"` — Device is undergoing an upgrade.
+/// - `"research_occupied"` — Device is reserved for research use.
 /// - `"unknown"` — Unrecognised status code from the API.
 #[pyclass(name = "DeviceStatus", module = "cqlib_tianyan", from_py_object)]
 #[derive(Clone, Debug)]
@@ -100,6 +102,7 @@ impl PyDeviceStatus {
             DeviceStatus::UnderMaintenance => "under_maintenance",
             DeviceStatus::OffLine => "offline",
             DeviceStatus::Upgrading => "upgrading",
+            DeviceStatus::ResearchOccupied => "research_occupied",
             DeviceStatus::Unknown(_) => "unknown",
         }
     }
@@ -125,7 +128,7 @@ impl PyDeviceStatus {
 
 /// Backend technology classified locally from the machine code.
 ///
-/// Values: `"superconducting"`, `"photonic"`, `"ion_trap"`, `"simulator"`.
+/// Values: `"superconducting"`, `"photonic"`, `"ion_trap"`, `"simulator"`, `"unknown"`.
 #[pyclass(name = "DeviceType", module = "cqlib_tianyan", from_py_object)]
 #[derive(Clone, Debug)]
 pub struct PyDeviceType {
@@ -148,6 +151,7 @@ impl PyDeviceType {
             DeviceType::Photonic => "photonic",
             DeviceType::IonTrap => "ion_trap",
             DeviceType::Simulator => "simulator",
+            DeviceType::Unknown => "unknown",
         }
     }
 

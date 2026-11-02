@@ -97,6 +97,7 @@ const char *tianyan_backend_display_name(const struct TianyanBackendC *backend);
  | 1    | Photonic        |
  | 2    | IonTrap         |
  | 3    | Simulator       |
+ | 4    | Unknown         |
  | -1   | NULL backend    |
  */
 int tianyan_backend_device_type(const struct TianyanBackendC *backend);
@@ -111,6 +112,7 @@ int tianyan_backend_device_type(const struct TianyanBackendC *backend);
  | 2    | UnderMaintenance    |
  | 3    | OffLine             |
  | 4    | Upgrading           |
+ | 5    | ResearchOccupied    |
  | -1   | Unknown             |
  */
 int tianyan_backend_status(const struct TianyanBackendC *backend);
