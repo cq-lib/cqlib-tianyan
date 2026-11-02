@@ -92,8 +92,6 @@ pub enum DeviceStatus {
     OffLine,
     /// Device is undergoing an upgrade.
     Upgrading,
-    /// Device is reserved for research use.
-    ResearchOccupied,
     /// An unknown status code was returned by the API.
     Unknown(i64),
 }
@@ -106,7 +104,6 @@ impl DeviceStatus {
             2 => DeviceStatus::UnderMaintenance,
             3 => DeviceStatus::OffLine,
             4 => DeviceStatus::Upgrading,
-            5 => DeviceStatus::ResearchOccupied,
             other => DeviceStatus::Unknown(other),
         }
     }
@@ -124,8 +121,6 @@ pub enum DeviceType {
     Photonic,
     IonTrap,
     Simulator,
-    /// The query endpoint returned a machine code not classified by this SDK.
-    Unknown,
 }
 
 impl DeviceType {
@@ -390,10 +385,12 @@ impl TianyanBackend {
         record: QueryDeviceRecord,
         raw: Value,
         client: Arc<TianyanClient>,
-    ) -> Self {
-        let device_type = DeviceType::from_code(&record.code).unwrap_or(DeviceType::Unknown);
+    ) -> Result<Self, TianyanError> {
+        let device_type = DeviceType::from_code(&record.code).ok_or_else(|| {
+            TianyanError::InvalidInput(format!("unsupported device code: {}", record.code))
+        })?;
         let display_name = record.name.unwrap_or_else(|| record.code.clone());
-        Self {
+        Ok(Self {
             name: record.code,
             display_name,
             device_type,
@@ -412,7 +409,7 @@ impl TianyanBackend {
             }),
             client,
             cached_config: Mutex::new(None),
-        }
+        })
     }
 
     /// Query-endpoint fields, or `None` for a backend from the legacy list API.
@@ -543,12 +540,6 @@ impl TianyanBackend {
         shots: usize,
         calibration_mode: CalibrationMode,
     ) -> Result<TaskHandle, TianyanError> {
-        if self.device_type == DeviceType::Unknown {
-            return Err(TianyanError::InvalidInput(format!(
-                "task submission is not supported for unclassified device: {}",
-                self.name
-            )));
-        }
         TaskHandle::submit(
             self.client.clone(),
             circuits,
@@ -592,11 +583,7 @@ pub fn query_backends(
         .map(|raw| {
             let record: QueryDeviceRecord =
                 serde_json::from_value(raw.clone()).map_err(TianyanError::Json)?;
-            Ok(TianyanBackend::from_query_record(
-                record,
-                raw,
-                client.clone(),
-            ))
+            TianyanBackend::from_query_record(record, raw, client.clone())
         })
         .collect()
 }

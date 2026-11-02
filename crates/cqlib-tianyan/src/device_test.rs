@@ -22,6 +22,7 @@ fn device_status_mapping() {
     assert_eq!(DeviceStatus::from_code(2), DeviceStatus::UnderMaintenance);
     assert_eq!(DeviceStatus::from_code(3), DeviceStatus::OffLine);
     assert_eq!(DeviceStatus::from_code(4), DeviceStatus::Upgrading);
+    assert_eq!(DeviceStatus::from_code(5), DeviceStatus::Unknown(5));
     assert!(matches!(
         DeviceStatus::from_code(99),
         DeviceStatus::Unknown(99)
@@ -169,7 +170,7 @@ fn query_backends_sends_filters_and_preserves_gate_data() {
                     "derivativeGate": []
                 },
                 {
-                    "id": "1002", "code": "QPU-01", "name": "示例设备",
+                    "id": "1002", "code": "tianyan-287", "name": "示例设备",
                     "status": 5, "isToll": 2, "baseGate": []
                 }
             ]
@@ -209,7 +210,7 @@ fn query_backends_sends_filters_and_preserves_gate_data() {
         .with_labels("1")
         .with_toll(1)
         .with_computer_ids(vec![1001, 1002]);
-    let backends = query_backends(client, &query).unwrap();
+    let backends = query_backends(client.clone(), &query).unwrap();
     let first_line = worker.join().unwrap();
     let target = first_line.split_whitespace().nth(1).unwrap();
     let url = reqwest::Url::parse(&format!("http://localhost{target}")).unwrap();
@@ -242,12 +243,15 @@ fn query_backends_sends_filters_and_preserves_gate_data() {
         backends[0].base_gates().unwrap()[0].qcis.as_deref(),
         Some("H")
     );
-    assert_eq!(backends[1].name, "QPU-01");
-    assert_eq!(backends[1].device_type, DeviceType::Unknown);
-    assert_eq!(backends[1].status, DeviceStatus::ResearchOccupied);
+    assert_eq!(backends[1].name, "tianyan-287");
+    assert_eq!(backends[1].device_type, DeviceType::Superconducting);
+    assert_eq!(backends[1].status, DeviceStatus::Unknown(5));
+
+    let unknown_raw = serde_json::json!({"id": "1003", "code": "QPU-01", "status": 0});
+    let unknown_record = serde_json::from_value(unknown_raw.clone()).unwrap();
     assert!(matches!(
-        backends[1].run(vec!["H Q0".into()], 1),
-        Err(TianyanError::InvalidInput(_))
+        TianyanBackend::from_query_record(unknown_record, unknown_raw, client),
+        Err(TianyanError::InvalidInput(message)) if message.contains("QPU-01")
     ));
 }
 

@@ -148,7 +148,7 @@ impl TianyanPlatform {
     }
 
     /// Query quantum computers using the filters supported by the user-facing endpoint.
-    /// Unlike `list_backends`, this includes records with non-`tianyan` machine codes.
+    /// Returns an error if the response contains a machine code this SDK cannot classify.
     ///
     /// ```rust,no_run
     /// use cqlib_tianyan::{DeviceQuery, TianyanPlatform};
