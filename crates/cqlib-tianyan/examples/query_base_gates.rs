@@ -37,15 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let gates = backend.base_gates().unwrap_or(&[]);
     println!("baseGate: {} entries", gates.len());
     for gate in gates {
-        println!(
-            "{} | rule: {}",
-            gate.qcis.as_deref().unwrap_or("<missing qcis>"),
-            if gate.rule.is_some() {
-                "present"
-            } else {
-                "missing"
-            }
-        );
+        println!("{}", gate.qcis.as_deref().unwrap_or("<missing qcis>"));
     }
     Ok(())
 }
