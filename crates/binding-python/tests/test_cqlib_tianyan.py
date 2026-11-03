@@ -85,7 +85,9 @@ def skip_without_api_key(api_key: str | None) -> None:
 
 
 @pytest.fixture
-def platform(api_key: str | None, domain: str | None, scheme: str | None) -> TianyanPlatform:
+def platform(
+    api_key: str | None, domain: str | None, scheme: str | None
+) -> TianyanPlatform:
     """Create authenticated platform instance.
 
     Requires TIANYAN_API_KEY environment variable.
@@ -355,7 +357,9 @@ class TestTianyanPlatformAuth:
         assert platform is not None
         assert "TianyanPlatform" in repr(platform)
 
-    def test_login_with_invalid_key(self, domain: str | None, scheme: str | None) -> None:
+    def test_login_with_invalid_key(
+        self, domain: str | None, scheme: str | None
+    ) -> None:
         """Login with invalid API key raises an error."""
         kwargs: dict[str, object] = {"api_key": "invalid_key_12345"}
         if domain:

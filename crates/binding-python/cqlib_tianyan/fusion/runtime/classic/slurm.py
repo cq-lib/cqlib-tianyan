@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import shlex
 import subprocess
@@ -54,7 +53,9 @@ class SlurmClassicRunner:
         script_path = job_dir / "run.sh"
         slurm_path = job_dir / "submit.slurm"
 
-        input_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        input_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         script_path.write_text(
             textwrap.dedent(
                 f"""\
@@ -115,7 +116,9 @@ class SlurmClassicRunner:
 
         source_root = getattr(workflow, "_fusion_root", None)
         if source_root is None:
-            raise ValueError("Slurm execution requires a workflow loaded from a task directory")
+            raise ValueError(
+                "Slurm execution requires a workflow loaded from a task directory"
+            )
         input_path.write_text(
             json.dumps(ctx.to_dict(), ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -167,7 +170,9 @@ class SlurmClassicRunner:
         job_id = self._submit_and_wait(script_path, slurm_path, output_path)
         envelope = json.loads(output_path.read_text(encoding="utf-8"))
         next_ctx = Context.from_dict(envelope["context"])
-        return next_ctx, ClassicJobResult(job_id=job_id, output=dict(envelope["payload"]))
+        return next_ctx, ClassicJobResult(
+            job_id=job_id, output=dict(envelope["payload"])
+        )
 
     def _submit_and_wait(
         self,

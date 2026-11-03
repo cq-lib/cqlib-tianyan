@@ -7,7 +7,10 @@ import pytest
 from cqlib_tianyan.fusion import Context, FusionWorkflow, classic_stage, quantum_stage
 from cqlib_tianyan.fusion.exceptions import WorkflowError
 from cqlib_tianyan.fusion.package.builder import build_package
-from cqlib_tianyan.fusion.package.loader import load_workflow_from_dir, load_workflow_from_zip
+from cqlib_tianyan.fusion.package.loader import (
+    load_workflow_from_dir,
+    load_workflow_from_zip,
+)
 from cqlib_tianyan.fusion.package.validator import validate_package_dir
 from cqlib_tianyan.fusion.runtime.orchestrator import Orchestrator
 from cqlib_tianyan.fusion.spec.manifest import load_manifest
@@ -110,7 +113,10 @@ def test_stage_order_follows_definition_order():
         def a_second(self, ctx: Context):
             return {}
 
-    assert [stage.method_name for stage in Ordered().stages()] == ["z_first", "a_second"]
+    assert [stage.method_name for stage in Ordered().stages()] == [
+        "z_first",
+        "a_second",
+    ]
 
 
 def test_zip_loader_keeps_extracted_root_alive(tmp_path):

@@ -48,7 +48,9 @@ def validate_package_dir(source_dir: Path | str) -> ValidationReport:
     profile_dict = None
     if not errors:
         try:
-            tree = ast.parse(entry_file.read_text(encoding="utf-8"), filename=str(entry_file))
+            tree = ast.parse(
+                entry_file.read_text(encoding="utf-8"), filename=str(entry_file)
+            )
             defined_names = _top_level_defined_names(tree)
             if callable_name not in defined_names:
                 errors.append(
@@ -108,7 +110,10 @@ def _has_stage_decorator(tree: ast.Module) -> bool:
             continue
         for decorator in node.decorator_list:
             target = decorator.func if isinstance(decorator, ast.Call) else decorator
-            if isinstance(target, ast.Name) and target.id in {"classic_stage", "quantum_stage"}:
+            if isinstance(target, ast.Name) and target.id in {
+                "classic_stage",
+                "quantum_stage",
+            }:
                 return True
             if isinstance(target, ast.Attribute) and target.attr in {
                 "classic_stage",

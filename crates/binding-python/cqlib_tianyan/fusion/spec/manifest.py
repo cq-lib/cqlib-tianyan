@@ -69,7 +69,9 @@ class FusionManifest:
 
         mode = str(data.get("mode", "generic")).strip()
         if mode not in VALID_MODES:
-            raise ManifestError(f"invalid mode {mode!r}, expected one of {sorted(VALID_MODES)}")
+            raise ManifestError(
+                f"invalid mode {mode!r}, expected one of {sorted(VALID_MODES)}"
+            )
 
         profile_raw = data.get("profile") or {}
         if not isinstance(profile_raw, dict):
@@ -104,12 +106,16 @@ class FusionManifest:
         try:
             max_rounds = int(runtime_raw.get("max_rounds", 100))
         except (TypeError, ValueError) as exc:
-            raise ManifestError("fusion.yaml runtime.max_rounds must be an integer") from exc
+            raise ManifestError(
+                "fusion.yaml runtime.max_rounds must be an integer"
+            ) from exc
         if max_rounds < 1:
             raise ManifestError("fusion.yaml runtime.max_rounds must be at least 1")
         runtime = RuntimeHints(
             max_rounds=max_rounds,
-            checkpoint=_as_bool(runtime_raw.get("checkpoint", True), "runtime.checkpoint"),
+            checkpoint=_as_bool(
+                runtime_raw.get("checkpoint", True), "runtime.checkpoint"
+            ),
         )
 
         return cls(
@@ -131,7 +137,9 @@ def _optional_positive_int(value: Any, field_name: str) -> int | None:
     try:
         parsed = int(value)
     except (TypeError, ValueError) as exc:
-        raise ManifestError(f"fusion.yaml {field_name} must be a positive integer") from exc
+        raise ManifestError(
+            f"fusion.yaml {field_name} must be a positive integer"
+        ) from exc
     if parsed < 1:
         raise ManifestError(f"fusion.yaml {field_name} must be a positive integer")
     return parsed

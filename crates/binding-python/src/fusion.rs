@@ -1,5 +1,8 @@
 //! Thin Python binding for the shared Rust fusion client. Wire models cross
 //! the boundary as JSON; the Python facade exposes the existing dataclasses.
+// Legacy methods stay exposed for source compatibility and forward to the
+// deprecated Rust wrappers.
+#![allow(deprecated)]
 use cqlib_tianyan::fusion::{FusionClient, FusionError, SubmitOptions};
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
 use serde::Serialize;

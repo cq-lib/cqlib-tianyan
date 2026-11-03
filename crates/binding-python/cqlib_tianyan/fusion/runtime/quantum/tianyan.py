@@ -1,4 +1,5 @@
 """Quantum execution through cqlib_tianyan; legacy cqlib only compiles QCIS."""
+
 from __future__ import annotations
 
 import json
@@ -31,29 +32,49 @@ class TianYanQuantumRunner:
             from cqlib import TianYanPlatform
             from cqlib.mapping import transpile_qcis
         except ImportError as exc:
-            raise ImportError("transpile=True requires a cqlib version providing TianYanPlatform and mapping.transpile_qcis") from exc
+            raise ImportError(
+                "transpile=True requires a cqlib version providing TianYanPlatform and mapping.transpile_qcis"
+            ) from exc
         if self._legacy_platform is None:
             key = resolve_login_key(self.login_key)
             if not key:
-                raise ValueError("legacy transpilation needs an API key; pass login_key or use transpile=False")
-            self._legacy_platform = TianYanPlatform(login_key=key, machine_name=self.machine_name)
+                raise ValueError(
+                    "legacy transpilation needs an API key; pass login_key or use transpile=False"
+                )
+            self._legacy_platform = TianYanPlatform(
+                login_key=key, machine_name=self.machine_name
+            )
         compiled, initial, swaps, final = transpile_qcis(circuit, self._legacy_platform)
         if not isinstance(compiled, str):
             compiled = compiled.qcis()
         if not isinstance(compiled, str) or not compiled.strip():
             raise ValueError("transpiler did not produce QCIS text")
-        return compiled, {"initial_layout": initial, "swap_mapping": swaps, "logical_to_physical": final}
+        return compiled, {
+            "initial_layout": initial,
+            "swap_mapping": swaps,
+            "logical_to_physical": final,
+        }
 
     def run(self, stage_name: str, payload: dict[str, Any]) -> QuantumJobResult:
         qcis = payload.get("qcis") or payload.get("circuit")
         circuits = [qcis] if isinstance(qcis, str) else qcis
-        if not isinstance(circuits, list) or not circuits or any(not isinstance(c, str) or not c.strip() for c in circuits):
-            raise ValueError("quantum stage payload requires nonempty QCIS text or a list of QCIS strings")
+        if (
+            not isinstance(circuits, list)
+            or not circuits
+            or any(not isinstance(c, str) or not c.strip() for c in circuits)
+        ):
+            raise ValueError(
+                "quantum stage payload requires nonempty QCIS text or a list of QCIS strings"
+            )
         shots = int(payload.get("shots", 12000))
         timeout = float(payload.get("max_wait_time", 3600))
         interval = float(payload.get("poll_interval", 5))
-        if shots <= 0 or not all(math.isfinite(v) and v > 0 for v in (timeout, interval)):
-            raise ValueError("shots, max_wait_time and poll_interval must be positive and finite")
+        if shots <= 0 or not all(
+            math.isfinite(v) and v > 0 for v in (timeout, interval)
+        ):
+            raise ValueError(
+                "shots, max_wait_time and poll_interval must be positive and finite"
+            )
         mappings = []
         if self.transpile:
             prepared = [self._compile(circuit) for circuit in circuits]
@@ -74,12 +95,24 @@ class TianYanQuantumRunner:
             result_id = _value(item, "task_id")
             if result_id is None:
                 raise ValueError("ExecutionResult is missing task_id")
-            results.append({"result_index": index, "task_id": str(result_id),
-                            "counts": counts, "shots": _value(item, "shots", shots)})
+            results.append(
+                {
+                    "result_index": index,
+                    "task_id": str(result_id),
+                    "counts": counts,
+                    "shots": _value(item, "shots", shots),
+                }
+            )
         if not results:
             raise ValueError("quantum wait completed without results")
-        output = {"stage": stage_name, "engine": "tianyan", "machine": self.machine_name,
-                  "task_ids": task_ids, "results": results, "transpile_mappings": mappings}
+        output = {
+            "stage": stage_name,
+            "engine": "tianyan",
+            "machine": self.machine_name,
+            "task_ids": task_ids,
+            "results": results,
+            "transpile_mappings": mappings,
+        }
         if len(results) == 1:
             output["counts"] = results[0]["counts"]
         # Reject native objects/non-finite values here rather than losing a

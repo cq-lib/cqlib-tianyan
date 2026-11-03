@@ -122,12 +122,7 @@ fn auto_confirm_and_manual_use_different_routes() {
     ]);
     let mut opt = options(file.path());
     opt.auto_confirm = true;
-    assert!(
-        !client(&host)
-            .submit(&opt)
-            .unwrap()
-            .awaiting_confirmation
-    );
+    assert!(!client(&host).submit(&opt).unwrap().awaiting_confirmation);
     assert!(server.join().unwrap()[3].contains("\"plan_id\":\"plan\""));
     opt.dispatch_mode = "manual".into();
     // Validate resource bindings before uploading anything.
@@ -135,12 +130,7 @@ fn auto_confirm_and_manual_use_different_routes() {
     opt.quantum_resource = Some("q".into());
     opt.hpc_resource = Some("h".into());
     let (host, server) = self::server(vec![ok(json!({})), ok(json!({"id":"t"}))]);
-    assert!(
-        !client(&host)
-            .submit(&opt)
-            .unwrap()
-            .awaiting_confirmation
-    );
+    assert!(!client(&host).submit(&opt).unwrap().awaiting_confirmation);
     assert!(server.join().unwrap()[1].starts_with("POST /qccp-quantum/sdk/fusion/task/run"));
 }
 
@@ -204,9 +194,7 @@ fn shared_session_refreshes_once_without_persisting_when_disabled() {
     let c = FusionClient::from_client(shared.clone());
     c.confirm("t", "plan").unwrap();
     // A second handle observes the token refreshed by the first.
-    FusionClient::from_client(shared)
-        .get("other")
-        .unwrap();
+    FusionClient::from_client(shared).get("other").unwrap();
     let requests = server.join().unwrap();
     assert_eq!(requests.len(), 4);
     assert!(requests[1].contains("openId=test-key"));
@@ -302,9 +290,7 @@ fn recommendation_failure_retains_saved_task() {
             json!({"code":503,"data":{"retry_later":true}}).to_string(),
         ),
     ]);
-    let error = client(&host)
-        .submit(&options(file.path()))
-        .unwrap_err();
+    let error = client(&host).submit(&options(file.path())).unwrap_err();
     let data = error.data.unwrap();
     assert_eq!(data["job"]["task_id"], "saved");
     assert_eq!(data["server_data"]["retry_later"], true);

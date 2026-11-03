@@ -1,5 +1,8 @@
 //! Fusion C API. Handles own an Arc to the shared Rust client. Returned JSON
 //! strings belong to the caller and must be released with tianyan_string_free.
+// Legacy entry points stay exported for source compatibility and forward to
+// the deprecated Rust wrappers.
+#![allow(deprecated)]
 use crate::{
     error::{clear_last_error, cstr_to_str, set_last_error, str_to_cstring},
     platform::TianyanPlatformC,

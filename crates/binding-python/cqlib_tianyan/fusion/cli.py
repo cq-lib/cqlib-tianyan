@@ -12,11 +12,14 @@ from typing import TYPE_CHECKING
 
 from cqlib_tianyan.fusion import __version__
 from cqlib_tianyan.fusion.client.models import ResourcePlan
-from cqlib_tianyan.fusion.exceptions import ConfirmationRequired, CqfusionError, CqfusionRequestError
+from cqlib_tianyan.fusion.exceptions import CqfusionError, CqfusionRequestError
 from cqlib_tianyan.fusion.package.builder import build_package
 from cqlib_tianyan.fusion.package.loader import load_workflow_from_dir
 from cqlib_tianyan.fusion.package.validator import validate_package_dir
-from cqlib_tianyan.fusion.runtime.factory import create_classic_runner, create_quantum_runner
+from cqlib_tianyan.fusion.runtime.factory import (
+    create_classic_runner,
+    create_quantum_runner,
+)
 from cqlib_tianyan.fusion.runtime.recommend import recommend_local
 from cqlib_tianyan.fusion.runtime.orchestrator import Orchestrator
 from cqlib_tianyan.fusion.spec.manifest import load_manifest
@@ -68,7 +71,9 @@ def _add_dispatch_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_cloud_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--host", default=os.environ.get("CQFUSION_HOST", "https://qc.zdxlz.com"))
+    parser.add_argument(
+        "--host", default=os.environ.get("CQFUSION_HOST", "https://qc.zdxlz.com")
+    )
     parser.add_argument("--token", default=os.environ.get("CQFUSION_TOKEN", ""))
     parser.add_argument("--login-key", default=None)
 
@@ -163,7 +168,9 @@ def _prepare_package(path: Path, output: Path | None) -> Path:
     return build_package(path, output)
 
 
-def _select_local_plan(args: argparse.Namespace, manifest, profile) -> ResourcePlan | None:
+def _select_local_plan(
+    args: argparse.Namespace, manifest, profile
+) -> ResourcePlan | None:
     plans = recommend_local(
         profile,
         preference=args.preference,
@@ -256,7 +263,10 @@ def _plans_payload(plans: list[ResourcePlan]) -> list[dict]:
 
 
 def _prompt_plan(plans: list[ResourcePlan]) -> ResourcePlan | None:
-    print("Select a resource plan (number or plan id, empty to leave the draft):", file=sys.stderr)
+    print(
+        "Select a resource plan (number or plan id, empty to leave the draft):",
+        file=sys.stderr,
+    )
     for plan in plans:
         print(
             f"  {plan.rank}. {plan.id}  {plan.quantum_resource} + {plan.hpc_resource}"
@@ -289,14 +299,26 @@ def _cmd_submit(args: argparse.Namespace) -> int:
             raise CqfusionRequestError("manual dispatch requires both resource codes")
         decision = schedule.manual(args.quantum_resource, args.hpc_resource)
     else:
-        selected = next((c for c in candidates if c["group_id"] == args.plan), None) if args.plan else None
+        selected = (
+            next((c for c in candidates if c["group_id"] == args.plan), None)
+            if args.plan
+            else None
+        )
         if args.auto_confirm and not args.plan:
             selected = next((c for c in candidates if c["selectable"]), None)
-        if selected is None and not args.plan and not args.auto_confirm and sys.stdin.isatty():
+        if (
+            selected is None
+            and not args.plan
+            and not args.auto_confirm
+            and sys.stdin.isatty()
+        ):
             answer = input("Select a recommendation rank (empty to cancel): ").strip()
             selected = next((c for c in candidates if str(c["rank"]) == answer), None)
         if selected is None:
-            print("No job created; select a current recommendation with --plan or --auto-confirm, or use manual resource codes", file=sys.stderr)
+            print(
+                "No job created; select a current recommendation with --plan or --auto-confirm, or use manual resource codes",
+                file=sys.stderr,
+            )
             return 2
         decision = schedule.select(selected["rank"])
     handle = client.submit_decision(args.name, decision)
@@ -349,7 +371,9 @@ def _cmd_download(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cqfusion")
-    parser.add_argument("--version", action="version", version=f"cqfusion {__version__}")
+    parser.add_argument(
+        "--version", action="version", version=f"cqfusion {__version__}"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     validate = sub.add_parser("validate", help="validate a fusion task directory")
@@ -366,7 +390,9 @@ def build_parser() -> argparse.ArgumentParser:
     run_local.add_argument("--workdir", type=Path, default=Path("/tmp/cqfusion-run"))
     run_local.add_argument("--classic", choices=["local", "slurm"], default="local")
     run_local.add_argument("--quantum", choices=["mock", "tianyan"], default="mock")
-    run_local.add_argument("--machine", default=None, help="quantum machine code for tianyan")
+    run_local.add_argument(
+        "--machine", default=None, help="quantum machine code for tianyan"
+    )
     run_local.add_argument("--login-key", default=None)
     run_local.add_argument("--slurm-partition", default=None)
     run_local.add_argument("--slurm-dry-run", action="store_true")
@@ -388,7 +414,9 @@ def build_parser() -> argparse.ArgumentParser:
     submit = sub.add_parser("submit", help="submit fusion task to cloud")
     submit.add_argument("path", type=Path, help="task directory or zip")
     submit.add_argument("--name", required=True)
-    submit.add_argument("-o", "--output", type=Path, help="zip output when path is directory")
+    submit.add_argument(
+        "-o", "--output", type=Path, help="zip output when path is directory"
+    )
     submit.add_argument("--wait", action="store_true")
     submit.add_argument("--timeout", type=float, default=3600.0)
     submit.add_argument(
@@ -409,7 +437,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_cloud_args(save)
     save.set_defaults(func=_cmd_save)
 
-    recommend = sub.add_parser("recommend", help="deprecated SDK recommend (not deployed)")
+    recommend = sub.add_parser(
+        "recommend", help="deprecated SDK recommend (not deployed)"
+    )
     recommend.add_argument("task_id")
     recommend.add_argument(
         "--preference",

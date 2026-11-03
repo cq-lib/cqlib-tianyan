@@ -24,7 +24,9 @@ class TaskProfile:
         }
 
 
-def extract_profile(manifest: FusionManifest, workflow: FusionWorkflow | None = None) -> TaskProfile:
+def extract_profile(
+    manifest: FusionManifest, workflow: FusionWorkflow | None = None
+) -> TaskProfile:
     """Merge manifest hints with stage decorator metadata."""
     gate_set = list(manifest.profile.gate_set)
     logical_qubits = manifest.profile.logical_qubits

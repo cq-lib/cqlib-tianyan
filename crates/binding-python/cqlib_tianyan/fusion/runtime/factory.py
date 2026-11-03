@@ -46,12 +46,22 @@ def create_quantum_runner(
         from cqlib_tianyan.fusion.runtime.quantum.tianyan import TianYanQuantumRunner
 
         key = resolve_login_key(login_key)
-        machine = machine_name or manifest.resources.quantum or os.environ.get("CQFUSION_MACHINE")
+        machine = (
+            machine_name
+            or manifest.resources.quantum
+            or os.environ.get("CQFUSION_MACHINE")
+        )
         if not machine:
-            raise ValueError("specify a backend code with --machine, manifest resources.quantum or CQFUSION_MACHINE")
+            raise ValueError(
+                "specify a backend code with --machine, manifest resources.quantum or CQFUSION_MACHINE"
+            )
         if platform is None:
             if not key:
-                raise ValueError("set TIANYAN_API_KEY, CQFUSION_LOGIN_KEY or LOGIN_KEY for tianyan backend")
+                raise ValueError(
+                    "set TIANYAN_API_KEY, CQFUSION_LOGIN_KEY or LOGIN_KEY for tianyan backend"
+                )
             platform = TianyanPlatform.login(key)
-        return TianYanQuantumRunner(platform=platform, machine_name=machine, transpile=transpile, login_key=key)
+        return TianYanQuantumRunner(
+            platform=platform, machine_name=machine, transpile=transpile, login_key=key
+        )
     return MockQuantumRunner()

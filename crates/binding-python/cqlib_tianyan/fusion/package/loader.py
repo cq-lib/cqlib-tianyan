@@ -57,7 +57,9 @@ def load_workflow_from_dir(source_dir: Path | str) -> FusionWorkflow:
     return load_workflow(manifest, root)
 
 
-def load_workflow_from_zip(zip_path: Path | str) -> tuple[FusionManifest, FusionWorkflow, Path]:
+def load_workflow_from_zip(
+    zip_path: Path | str,
+) -> tuple[FusionManifest, FusionWorkflow, Path]:
     archive_path = Path(zip_path).resolve()
     root = Path(mkdtemp(prefix="cqfusion-"))
     try:
@@ -91,7 +93,9 @@ def _safe_extract(archive: zipfile.ZipFile, root: Path) -> None:
         # Unix symlinks are encoded in the upper mode bits. Do not allow an
         # archive to redirect later file reads outside the extraction root.
         if ((info.external_attr >> 16) & 0o170000) == 0o120000:
-            raise PackageValidationError(f"archive symlink is not allowed: {info.filename!r}")
+            raise PackageValidationError(
+                f"archive symlink is not allowed: {info.filename!r}"
+            )
         target = (root / Path(*member.parts)).resolve()
         if target != root_resolved and root_resolved not in target.parents:
             raise PackageValidationError(f"unsafe archive path: {info.filename!r}")

@@ -21,8 +21,15 @@ FusionStatus = Literal[
 
 
 _V2_STATUSES = {
-    1: "wait", 2: "queued", 3: "paused", 4: "resumed", 5: "cancelled",
-    6: "success", 7: "failed", 8: "running", 9: "unknown",
+    1: "wait",
+    2: "queued",
+    3: "paused",
+    4: "resumed",
+    5: "cancelled",
+    6: "success",
+    7: "failed",
+    8: "running",
+    9: "unknown",
 }
 
 
@@ -48,14 +55,30 @@ class FusionJob:
     def from_api(cls, payload: dict[str, Any]) -> FusionJob:
         return cls(
             id=str(payload.get("task_id") or payload.get("id") or ""),
-            name=str(payload.get("name") or payload.get("task_name") or payload.get("taskName") or ""),
-            status=_V2_STATUSES.get(payload.get("status"), str(payload.get("status") or "unknown")),  # type: ignore[arg-type]
+            name=str(
+                payload.get("name")
+                or payload.get("task_name")
+                or payload.get("taskName")
+                or ""
+            ),
+            status=_V2_STATUSES.get(
+                payload.get("status"), str(payload.get("status") or "unknown")
+            ),  # type: ignore[arg-type]
             dispatch_mode=payload.get("dispatch_mode") or payload.get("schedulingMode"),
-            dispatch_preference=payload.get("dispatch_preference") or payload.get("schedulingPreference"),
-            quantum_resource=payload.get("quantum_resource") or payload.get("qpuResourceCode") or payload.get("qpu"),
-            hpc_resource=payload.get("hpc_resource") or payload.get("cpuResourceCode") or payload.get("hpc"),
-            classic_iterations=_optional_int(payload.get("classicIterationCount", payload.get("classic_iterations"))),
-            quantum_iterations=_optional_int(payload.get("quantumIterationCount", payload.get("quantum_iterations"))),
+            dispatch_preference=payload.get("dispatch_preference")
+            or payload.get("schedulingPreference"),
+            quantum_resource=payload.get("quantum_resource")
+            or payload.get("qpuResourceCode")
+            or payload.get("qpu"),
+            hpc_resource=payload.get("hpc_resource")
+            or payload.get("cpuResourceCode")
+            or payload.get("hpc"),
+            classic_iterations=_optional_int(
+                payload.get("classicIterationCount", payload.get("classic_iterations"))
+            ),
+            quantum_iterations=_optional_int(
+                payload.get("quantumIterationCount", payload.get("quantum_iterations"))
+            ),
             package_name=payload.get("package_name") or payload.get("taskFileName"),
             raw=dict(payload),
         )

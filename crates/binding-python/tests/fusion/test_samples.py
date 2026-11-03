@@ -49,7 +49,12 @@ def test_run_local_waits_for_confirmation(monkeypatch, tmp_path, capsys):
     )
     assert code == 0
     blocked = main(
-        ["run-local", str(SAMPLES / "legacy"), "--workdir", str(tmp_path / "need-confirm")]
+        [
+            "run-local",
+            str(SAMPLES / "legacy"),
+            "--workdir",
+            str(tmp_path / "need-confirm"),
+        ]
     )
     assert blocked == 2
     captured = capsys.readouterr()

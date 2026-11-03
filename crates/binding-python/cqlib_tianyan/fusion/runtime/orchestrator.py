@@ -50,7 +50,9 @@ class Orchestrator:
         self._stage_index: StageIndex = {"classic": 0, "quantum": 0}
 
     def run(self) -> RunResult:
-        saved = self.checkpoint.load_state() if self.manifest.runtime.checkpoint else None
+        saved = (
+            self.checkpoint.load_state() if self.manifest.runtime.checkpoint else None
+        )
         if saved and "context" in saved:
             ctx = Context.from_dict(saved["context"])
             saved_last_kind = saved.get("last_kind")
@@ -215,7 +217,9 @@ class Orchestrator:
                 self._save_checkpoint(ctx, last_kind)
 
             ctx = self.workflow.on_finish(ctx)
-            self.emitter.emit("final", "success", "results materialized", round=ctx.round)
+            self.emitter.emit(
+                "final", "success", "results materialized", round=ctx.round
+            )
             self.emitter.emit("finish", "success", "workflow finished", round=ctx.round)
             if self.manifest.runtime.checkpoint:
                 self.checkpoint.clear()
@@ -223,7 +227,9 @@ class Orchestrator:
         except Exception as exc:  # noqa: BLE001
             status = "failed"
             self.emitter.emit("final", "failed", str(exc), round=ctx.round)
-            self.emitter.emit("finish", "failed", "workflow terminated", round=ctx.round)
+            self.emitter.emit(
+                "finish", "failed", "workflow terminated", round=ctx.round
+            )
             raise WorkflowError(str(exc)) from exc
 
         return RunResult(

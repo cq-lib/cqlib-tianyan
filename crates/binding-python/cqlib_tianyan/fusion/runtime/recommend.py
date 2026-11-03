@@ -33,12 +33,72 @@ class _Candidate:
 
 
 _CATALOG = (
-    _Candidate("tianyan176", "天衍-176", "cloud-hpc-batch", "Cloud HPC / batch", 176, 84, 3, 57, "中高"),
-    _Candidate("tianyan287", "天衍-287", "cloud-hpc-batch", "Cloud HPC / batch", 287, 88, 7, 72, "高"),
-    _Candidate("tianyan504", "天衍-504", "local-hpc", "Local HPC / local", 504, 81, 1, 50, "中高"),
-    _Candidate("tianyan176", "天衍-176", "local-hpc", "Local HPC / local", 176, 82, 5, 37, "中高"),
-    _Candidate("tianyan287", "天衍-287", "cloud-hpc-gpu", "Cloud HPC / GPU", 287, 91, 16, 94, "高"),
-    _Candidate("tianyan504", "天衍-504", "cloud-hpc-batch", "Cloud HPC / batch", 504, 81, 1, 60, "中高"),
+    _Candidate(
+        "tianyan176",
+        "天衍-176",
+        "cloud-hpc-batch",
+        "Cloud HPC / batch",
+        176,
+        84,
+        3,
+        57,
+        "中高",
+    ),
+    _Candidate(
+        "tianyan287",
+        "天衍-287",
+        "cloud-hpc-batch",
+        "Cloud HPC / batch",
+        287,
+        88,
+        7,
+        72,
+        "高",
+    ),
+    _Candidate(
+        "tianyan504",
+        "天衍-504",
+        "local-hpc",
+        "Local HPC / local",
+        504,
+        81,
+        1,
+        50,
+        "中高",
+    ),
+    _Candidate(
+        "tianyan176",
+        "天衍-176",
+        "local-hpc",
+        "Local HPC / local",
+        176,
+        82,
+        5,
+        37,
+        "中高",
+    ),
+    _Candidate(
+        "tianyan287",
+        "天衍-287",
+        "cloud-hpc-gpu",
+        "Cloud HPC / GPU",
+        287,
+        91,
+        16,
+        94,
+        "高",
+    ),
+    _Candidate(
+        "tianyan504",
+        "天衍-504",
+        "cloud-hpc-batch",
+        "Cloud HPC / batch",
+        504,
+        81,
+        1,
+        60,
+        "中高",
+    ),
 )
 
 
@@ -63,7 +123,9 @@ def recommend_local(
 
     waits = [item.wait_min for item in eligible]
     costs = [item.cost for item in eligible]
-    quality_weight, speed_weight, cost_weight = _WEIGHTS.get(preference, _WEIGHTS["balanced"])
+    quality_weight, speed_weight, cost_weight = _WEIGHTS.get(
+        preference, _WEIGHTS["balanced"]
+    )
     ranked: list[tuple[float, _Candidate]] = []
     for item in eligible:
         speed = _inverse_score(item.wait_min, min(waits), max(waits))
@@ -90,7 +152,11 @@ def recommend_local(
                 wait=f"{item.wait_min:.0f} 分钟",
                 cost=f"约 {item.cost:.0f} 元",
                 reliability=item.reliability,
-                raw={"machine": item.machine, "hpc_code": item.hpc_code, "preference": preference},
+                raw={
+                    "machine": item.machine,
+                    "hpc_code": item.hpc_code,
+                    "preference": preference,
+                },
             )
         )
     return plans
@@ -102,9 +168,14 @@ def _inverse_score(value: float, low: float, high: float) -> float:
     return 100.0 * (high - value) / (high - low)
 
 
-def _hint_bonus(item: _Candidate, quantum_hint: str | None, hpc_hint: str | None) -> float:
+def _hint_bonus(
+    item: _Candidate, quantum_hint: str | None, hpc_hint: str | None
+) -> float:
     bonus = 0.0
-    if quantum_hint and quantum_hint.strip().lower() in {item.machine, item.quantum.lower()}:
+    if quantum_hint and quantum_hint.strip().lower() in {
+        item.machine,
+        item.quantum.lower(),
+    }:
         bonus += 6.0
     if hpc_hint and hpc_hint.strip().lower() in {item.hpc_code, item.hpc.lower()}:
         bonus += 4.0

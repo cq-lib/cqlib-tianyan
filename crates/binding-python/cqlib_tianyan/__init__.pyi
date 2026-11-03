@@ -453,9 +453,10 @@ class TianyanPlatform:
     """
 
     @staticmethod
-    def fusion_schedule(self, package: str, strategy: str = "balanced") -> FusionSchedule: ...
+    def fusion_schedule(
+        self, package: str, strategy: str = "balanced"
+    ) -> FusionSchedule: ...
     def fusion_submit(self, name: str, decision: FusionDecision) -> FusionJob: ...
-
     def login(
         api_key: str,
         *,
@@ -585,7 +586,6 @@ __all__ = [
     "TaskHandle",
     "TianyanPlatform",
 ]
-
 
 @final
 class FusionSchedule:

@@ -98,7 +98,9 @@ class FusionWorkflow:
             raise ValueError(f"no {kind} stage registered")
         return items[index % len(items)]
 
-    def run_stage(self, spec: StageSpec, ctx: Context) -> tuple[Context, dict[str, Any]]:
+    def run_stage(
+        self, spec: StageSpec, ctx: Context
+    ) -> tuple[Context, dict[str, Any]]:
         method = getattr(self, spec.method_name)
         result = method(ctx)
         payload: dict[str, Any]

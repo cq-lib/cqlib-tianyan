@@ -126,7 +126,13 @@ impl PyTianyanPlatform {
         auto_refresh: Option<bool>,
         credentials_path: Option<String>,
     ) -> PyResult<Self> {
-        let cfg = build_config(domain, scheme, save_credentials, auto_refresh, credentials_path);
+        let cfg = build_config(
+            domain,
+            scheme,
+            save_credentials,
+            auto_refresh,
+            credentials_path,
+        );
         let base_url = cfg.base_url();
         TianyanPlatform::login_with_config(api_key, cfg)
             .map_py_err(py)
@@ -165,7 +171,13 @@ impl PyTianyanPlatform {
         auto_refresh: Option<bool>,
         credentials_path: Option<String>,
     ) -> PyResult<Self> {
-        let cfg = build_config(domain, scheme, save_credentials, auto_refresh, credentials_path);
+        let cfg = build_config(
+            domain,
+            scheme,
+            save_credentials,
+            auto_refresh,
+            credentials_path,
+        );
         let base_url = cfg.base_url();
         TianyanPlatform::from_credentials_with_config(cfg)
             .map_py_err(py)

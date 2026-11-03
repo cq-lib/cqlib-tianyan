@@ -51,7 +51,6 @@ pub struct FusionDecision {
 pub enum WaitSignal {
     Continue,
     Ready,
-    Error,
 }
 
 pub fn top_candidates(mut ranked: Vec<FusionCandidate>) -> Vec<FusionCandidate> {
@@ -102,7 +101,7 @@ pub fn select_manual(
 
 pub fn wait_signal(status: i64) -> Result<WaitSignal, FusionError> {
     match status {
-        5 | 6 | 7 => Ok(WaitSignal::Ready),
+        5..=7 => Ok(WaitSignal::Ready),
         1 | 2 | 3 | 4 | 8 => Ok(WaitSignal::Continue),
         9 => Err(FusionError::invalid("fusion task status is unknown")),
         other => Err(FusionError::invalid(format!(
