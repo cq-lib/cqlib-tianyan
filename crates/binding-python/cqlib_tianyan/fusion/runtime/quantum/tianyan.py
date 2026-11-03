@@ -101,7 +101,7 @@ class TianYanQuantumRunner:
         task_ids = [str(item) for item in task.task_ids]
         if not task_ids:
             raise ValueError("quantum submission returned no task IDs")
-        native_results = task.wait(timeout_secs=timeout, poll_interval_secs=interval)
+        native_results = task.wait(timeout=timeout, poll_interval=interval)
         results = []
         for index, item in enumerate(native_results):
             counts = _value(item, "counts")

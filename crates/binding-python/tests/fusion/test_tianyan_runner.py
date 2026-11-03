@@ -1,6 +1,7 @@
 """TianYanQuantumRunner transpilation against the companion cqlib 2.x compiler."""
 
 import builtins
+import inspect
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -35,6 +36,27 @@ def make_runner(device, results, device_type="superconducting"):
     )
     platform = SimpleNamespace(get_backend=Mock(return_value=backend))
     return TianYanQuantumRunner(platform, "tianyan-test"), backend
+
+
+def test_wait_uses_native_task_handle_keyword_arguments():
+    from cqlib_tianyan import TaskHandle
+
+    signature = inspect.signature(TaskHandle.wait)
+    results = [SimpleNamespace(task_id="t1", counts={"0": 1}, shots=1)]
+    runner, backend = make_runner(None, results)
+    runner.transpile = False
+    task = backend.run.return_value
+
+    def wait(**kwargs):
+        signature.bind(task, **kwargs)
+        return results
+
+    task.wait.side_effect = wait
+    result = runner.run(
+        "quantum", {"qcis": "M Q0", "shots": 1, "max_wait_time": 17, "poll_interval": 2}
+    )
+    task.wait.assert_called_once_with(timeout=17.0, poll_interval=2.0)
+    assert result.output["counts"] == {"0": 1}
 
 
 def test_transpile_routes_and_lowers_to_device_native_qcis():

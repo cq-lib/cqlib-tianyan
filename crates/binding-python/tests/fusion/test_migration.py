@@ -92,7 +92,7 @@ def test_batch_quantum_preserves_all_results_without_legacy_import(monkeypatch):
     )
     result = r.run("quantum", {"qcis": ["H Q1", "X Q1"], "shots": 2})
     backend.run.assert_called_once_with(["H Q1", "X Q1"], shots=2)
-    task.wait.assert_called_once_with(timeout_secs=3600.0, poll_interval_secs=5.0)
+    task.wait.assert_called_once_with(timeout=3600.0, poll_interval=5.0)
     assert result.output["task_ids"] == ["t1", "t2"]
     assert [item["counts"] for item in result.output["results"]] == [{"0": 2}, {"1": 2}]
     assert "counts" not in result.output
