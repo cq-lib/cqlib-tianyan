@@ -452,4 +452,4 @@ except ConfirmationRequired as pending:
     # 用户选定方案后调用 client.confirm(pending.job.id, plan_id)
 ```
 
-上传、推荐、确认、查询和下载由 Rust 执行；Python 提供原有数据类。智能提交默认等待确认，CLI 退出码为 2；`--auto-confirm` 或 `--plan` 才确认入队。量子运行通过已有平台的 backend 和 TaskHandle；旧 cqlib 仅用于可选转译。详细字段、兼容和验收边界见 [融合迁移说明](fusion-migration.md)。
+上传、推荐、确认、查询和下载由 Rust 执行；Python 提供原有数据类。智能提交默认等待确认，CLI 退出码为 2；`--auto-confirm` 或 `--plan` 才确认入队。量子运行通过已有平台的 backend 和 TaskHandle；默认转译（`transpile=True`）需安装 `cqlib-tianyan[cqlib]`，用 `backend.device_config()` 作为目标调用 cqlib 2.x 的 `cqlib.compile.compile`，仅支持超导后端，不需要二次登录；`--no-transpile` / `transpile=False` 不导入 cqlib。详细字段、兼容和验收边界见 [融合迁移说明](fusion-migration.md)。

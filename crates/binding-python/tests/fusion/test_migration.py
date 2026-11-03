@@ -79,7 +79,7 @@ def test_batch_quantum_preserves_all_results_without_legacy_import(monkeypatch):
 
     def guarded(name, *args, **kwargs):
         assert name != "cqlib" and not name.startswith("cqlib."), (
-            "legacy cqlib used without transpilation"
+            "companion cqlib imported without transpilation"
         )
         return original(name, *args, **kwargs)
 

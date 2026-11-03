@@ -1,4 +1,4 @@
-"""Quantum execution through cqlib_tianyan; legacy cqlib only compiles QCIS."""
+"""Quantum execution through cqlib_tianyan; companion cqlib only compiles QCIS."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
-from ...config import resolve_login_key
 from .mock import QuantumJobResult
 
 
@@ -16,43 +15,61 @@ def _value(obj, name, default=None):
     return value() if callable(value) else value
 
 
+def _layout_map(layout) -> dict[int, int]:
+    return {
+        int(logical.id): int(physical.id)
+        for logical, physical in layout.l2p_map.items()
+    }
+
+
 @dataclass
 class TianYanQuantumRunner:
     platform: Any
     machine_name: str
     transpile: bool = True
+    # Accepted for source compatibility; transpilation reuses ``platform``.
     login_key: str | None = field(default=None, repr=False)
     _backend: Any = field(default=None, init=False, repr=False)
-    _legacy_platform: Any = field(default=None, init=False, repr=False)
+    _device: Any = field(default=None, init=False, repr=False)
+
+    def _get_backend(self):
+        if self._backend is None:
+            self._backend = self.platform.get_backend(self.machine_name)
+        return self._backend
+
+    def _compile_target(self):
+        if self._device is None:
+            backend = self._get_backend()
+            device_type = getattr(backend, "device_type", None)
+            if device_type is not None and str(device_type) != "superconducting":
+                raise ValueError(
+                    f"transpile=True needs a superconducting backend; {self.machine_name} "
+                    f"is {device_type}, use transpile=False"
+                )
+            self._device = backend.device_config()
+        return self._device
 
     def _compile(self, circuit: str):
         # Delayed until explicitly needed: local/mock/no-transpile never
-        # imports the old platform or starts its second login session.
+        # imports the companion cqlib or downloads device configuration.
         try:
-            from cqlib import TianYanPlatform
-            from cqlib.mapping import transpile_qcis
+            from cqlib.compile import compile as compile_circuit
+            from cqlib.ir import qcis
         except ImportError as exc:
             raise ImportError(
-                "transpile=True requires a cqlib version providing TianYanPlatform and mapping.transpile_qcis"
+                "transpile=True requires the companion cqlib>=2.0.0b1 "
+                "(pip install 'cqlib-tianyan[cqlib]'); or use transpile=False"
             ) from exc
-        if self._legacy_platform is None:
-            key = resolve_login_key(self.login_key)
-            if not key:
-                raise ValueError(
-                    "legacy transpilation needs an API key; pass login_key or use transpile=False"
-                )
-            self._legacy_platform = TianYanPlatform(
-                login_key=key, machine_name=self.machine_name
-            )
-        compiled, initial, swaps, final = transpile_qcis(circuit, self._legacy_platform)
-        if not isinstance(compiled, str):
-            compiled = compiled.qcis()
-        if not isinstance(compiled, str) or not compiled.strip():
+        result = compile_circuit(qcis.loads(circuit), device=self._compile_target())
+        compiled = qcis.dumps(result.circuit)
+        if not compiled.strip():
             raise ValueError("transpiler did not produce QCIS text")
+        metadata = result.device_metadata
+        if metadata is None:
+            raise ValueError("device compilation returned no layout metadata")
         return compiled, {
-            "initial_layout": initial,
-            "swap_mapping": swaps,
-            "logical_to_physical": final,
+            "initial_layout": _layout_map(metadata.initial_layout),
+            "logical_to_physical": _layout_map(metadata.final_layout),
         }
 
     def run(self, stage_name: str, payload: dict[str, Any]) -> QuantumJobResult:
@@ -80,9 +97,7 @@ class TianYanQuantumRunner:
             prepared = [self._compile(circuit) for circuit in circuits]
             circuits = [item[0] for item in prepared]
             mappings = [item[1] for item in prepared]
-        if self._backend is None:
-            self._backend = self.platform.get_backend(self.machine_name)
-        task = self._backend.run(circuits, shots=shots)
+        task = self._get_backend().run(circuits, shots=shots)
         task_ids = [str(item) for item in task.task_ids]
         if not task_ids:
             raise ValueError("quantum submission returned no task IDs")
